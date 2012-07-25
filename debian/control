@@ -1,0 +1,29 @@
+Source: obexd
+Priority: optional
+Section: net
+Maintainer: Johan Hedberg <johan.hedberg@nokia.com>
+Build-Depends: debhelper (>> 4.0.0), libopenobex1-dev, libbluetooth3-dev (>= 4.0), cdbs, libdbus-1-dev, libdbus-glib-1-dev, libglib2.0-dev
+Standards-Version: 3.7.2
+
+Package: obexd
+Section: net
+Depends: ${shlibs:Depends}, bluez (>= 4.18)
+Conflicts: obex-data-server
+Architecture: any
+Description: OBEX Server
+ A basic OBEX server implementation.
+
+Package: obexd-test
+Architecture: any
+Priority: extra
+Depends: obexd (= ${binary:Version}), python, python2.5-gobject, python2.5-dbus
+Description: testing tools for obexd
+ This package contains test tools for testing obexd
+
+Package: obexd-dbg
+Section: libdevel
+Architecture: any
+Depends: obexd (= ${binary:Version})
+Description: Debug symbols for obexd
+ This package contains debug symbols for the obexd package.
+

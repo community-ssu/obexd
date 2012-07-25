@@ -1,0 +1,5 @@
+usr/bin
+usr/lib/obex
+usr/share/dbus-1/services
+etc/obex
+etc/obex/root-setup.d
