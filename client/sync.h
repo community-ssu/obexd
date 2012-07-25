@@ -2,8 +2,8 @@
  *
  *  OBEX Client
  *
- *  Copyright (C) 2007-2008  Intel Corporation
- *  Copyright (C) 2007-2009  Marcel Holtmann <marcel@holtmann.org>
+ *  Copyright (C) 2007-2010  Intel Corporation
+ *  Copyright (C) 2007-2010  Marcel Holtmann <marcel@holtmann.org>
  *
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -22,9 +22,5 @@
  *
  */
 
-#include <gdbus.h>
-
-gboolean sync_register_interface(DBusConnection *connection, const char *path,
-				void *user_data, GDBusDestroyFunction destroy);
-void sync_unregister_interface(DBusConnection *connection, const char *path,
-				void *user_data);
+int sync_init(void);
+void sync_exit(void);

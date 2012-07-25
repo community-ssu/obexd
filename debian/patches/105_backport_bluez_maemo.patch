@@ -1,0 +1,171 @@
+diff -cr btio/btio.c btio/btio.c
+*** btio/btio.c	Thu May 17 11:12:17 2012
+--- btio/btio.c	Mon Jul 16 19:53:28 2012
+***************
+*** 511,531 ****
+  	return 0;
+  }
+  
+- static gboolean get_key_size(int sock, int *size, GError **err)
+- {
+- 	struct bt_security sec;
+- 	socklen_t len;
+- 
+- 	memset(&sec, 0, sizeof(sec));
+- 	len = sizeof(sec);
+- 	if (getsockopt(sock, SOL_BLUETOOTH, BT_SECURITY, &sec, &len) == 0) {
+- 		*size = sec.key_size;
+- 		return TRUE;
+- 	}
+- 
+- 	return FALSE;
+- }
+- 
+  static gboolean l2cap_set(int sock, int sec_level, uint16_t imtu,
+  				uint16_t omtu, uint8_t mode, int master,
+  				int flushable, uint32_t priority, GError **err)
+--- 511,516 ----
+***************
+*** 889,898 ****
+  						va_arg(args, int *), err))
+  				return FALSE;
+  			break;
+- 		case BT_IO_OPT_KEY_SIZE:
+- 			if (!get_key_size(sock, va_arg(args, int *), err))
+- 				return FALSE;
+- 			break;
+  		case BT_IO_OPT_PSM:
+  			*(va_arg(args, uint16_t *)) = src.l2_psm ?
+  					btohs(src.l2_psm) : btohs(dst.l2_psm);
+--- 874,879 ----
+diff -cr btio/btio.h btio/btio.h
+*** btio/btio.h	Thu May 17 11:12:17 2012
+--- btio/btio.h	Mon Jul 16 19:53:28 2012
+***************
+*** 53,59 ****
+  	BT_IO_OPT_DEST_BDADDR,
+  	BT_IO_OPT_DEFER_TIMEOUT,
+  	BT_IO_OPT_SEC_LEVEL,
+- 	BT_IO_OPT_KEY_SIZE,
+  	BT_IO_OPT_CHANNEL,
+  	BT_IO_OPT_SOURCE_CHANNEL,
+  	BT_IO_OPT_DEST_CHANNEL,
+--- 53,58 ----
+diff -cr configure configure
+*** configure	Mon Jul 16 19:52:57 2012
+--- configure	Mon Jul 16 19:53:28 2012
+***************
+*** 12451,12462 ****
+      pkg_cv_BLUEZ_CFLAGS="$BLUEZ_CFLAGS"
+   elif test -n "$PKG_CONFIG"; then
+      if test -n "$PKG_CONFIG" && \
+!     { { $as_echo "$as_me:${as_lineno-$LINENO}: \$PKG_CONFIG --exists --print-errors \"bluez >= 4.99\""; } >&5
+!   ($PKG_CONFIG --exists --print-errors "bluez >= 4.99") 2>&5
+    ac_status=$?
+    $as_echo "$as_me:${as_lineno-$LINENO}: \$? = $ac_status" >&5
+    test $ac_status = 0; }; then
+!   pkg_cv_BLUEZ_CFLAGS=`$PKG_CONFIG --cflags "bluez >= 4.99" 2>/dev/null`
+  		      test "x$?" != "x0" && pkg_failed=yes
+  else
+    pkg_failed=yes
+--- 12451,12462 ----
+      pkg_cv_BLUEZ_CFLAGS="$BLUEZ_CFLAGS"
+   elif test -n "$PKG_CONFIG"; then
+      if test -n "$PKG_CONFIG" && \
+!     { { $as_echo "$as_me:${as_lineno-$LINENO}: \$PKG_CONFIG --exists --print-errors \"bluez >= 4.0\""; } >&5
+!   ($PKG_CONFIG --exists --print-errors "bluez >= 4.0") 2>&5
+    ac_status=$?
+    $as_echo "$as_me:${as_lineno-$LINENO}: \$? = $ac_status" >&5
+    test $ac_status = 0; }; then
+!   pkg_cv_BLUEZ_CFLAGS=`$PKG_CONFIG --cflags "bluez >= 4.0" 2>/dev/null`
+  		      test "x$?" != "x0" && pkg_failed=yes
+  else
+    pkg_failed=yes
+***************
+*** 12468,12479 ****
+      pkg_cv_BLUEZ_LIBS="$BLUEZ_LIBS"
+   elif test -n "$PKG_CONFIG"; then
+      if test -n "$PKG_CONFIG" && \
+!     { { $as_echo "$as_me:${as_lineno-$LINENO}: \$PKG_CONFIG --exists --print-errors \"bluez >= 4.99\""; } >&5
+!   ($PKG_CONFIG --exists --print-errors "bluez >= 4.99") 2>&5
+    ac_status=$?
+    $as_echo "$as_me:${as_lineno-$LINENO}: \$? = $ac_status" >&5
+    test $ac_status = 0; }; then
+!   pkg_cv_BLUEZ_LIBS=`$PKG_CONFIG --libs "bluez >= 4.99" 2>/dev/null`
+  		      test "x$?" != "x0" && pkg_failed=yes
+  else
+    pkg_failed=yes
+--- 12468,12479 ----
+      pkg_cv_BLUEZ_LIBS="$BLUEZ_LIBS"
+   elif test -n "$PKG_CONFIG"; then
+      if test -n "$PKG_CONFIG" && \
+!     { { $as_echo "$as_me:${as_lineno-$LINENO}: \$PKG_CONFIG --exists --print-errors \"bluez >= 4.0\""; } >&5
+!   ($PKG_CONFIG --exists --print-errors "bluez >= 4.0") 2>&5
+    ac_status=$?
+    $as_echo "$as_me:${as_lineno-$LINENO}: \$? = $ac_status" >&5
+    test $ac_status = 0; }; then
+!   pkg_cv_BLUEZ_LIBS=`$PKG_CONFIG --libs "bluez >= 4.0" 2>/dev/null`
+  		      test "x$?" != "x0" && pkg_failed=yes
+  else
+    pkg_failed=yes
+***************
+*** 12494,12511 ****
+          _pkg_short_errors_supported=no
+  fi
+          if test $_pkg_short_errors_supported = yes; then
+! 	        BLUEZ_PKG_ERRORS=`$PKG_CONFIG --short-errors --print-errors --cflags --libs "bluez >= 4.99" 2>&1`
+          else
+! 	        BLUEZ_PKG_ERRORS=`$PKG_CONFIG --print-errors --cflags --libs "bluez >= 4.99" 2>&1`
+          fi
+  	# Put the nasty error message in config.log where it belongs
+  	echo "$BLUEZ_PKG_ERRORS" >&5
+  
+! 	as_fn_error $? "BlueZ >= 4.99 is required" "$LINENO" 5
+  elif test $pkg_failed = untried; then
+       	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+  $as_echo "no" >&6; }
+! 	as_fn_error $? "BlueZ >= 4.99 is required" "$LINENO" 5
+  else
+  	BLUEZ_CFLAGS=$pkg_cv_BLUEZ_CFLAGS
+  	BLUEZ_LIBS=$pkg_cv_BLUEZ_LIBS
+--- 12494,12511 ----
+          _pkg_short_errors_supported=no
+  fi
+          if test $_pkg_short_errors_supported = yes; then
+! 	        BLUEZ_PKG_ERRORS=`$PKG_CONFIG --short-errors --print-errors --cflags --libs "bluez >= 4.0" 2>&1`
+          else
+! 	        BLUEZ_PKG_ERRORS=`$PKG_CONFIG --print-errors --cflags --libs "bluez >= 4.0" 2>&1`
+          fi
+  	# Put the nasty error message in config.log where it belongs
+  	echo "$BLUEZ_PKG_ERRORS" >&5
+  
+! 	as_fn_error $? "BlueZ >= 4.0 is required" "$LINENO" 5
+  elif test $pkg_failed = untried; then
+       	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+  $as_echo "no" >&6; }
+! 	as_fn_error $? "BlueZ >= 4.0 is required" "$LINENO" 5
+  else
+  	BLUEZ_CFLAGS=$pkg_cv_BLUEZ_CFLAGS
+  	BLUEZ_LIBS=$pkg_cv_BLUEZ_LIBS
+diff -cr configure.ac configure.ac
+*** configure.ac	Mon Jul 16 19:52:57 2012
+--- configure.ac	Mon Jul 16 19:53:28 2012
+***************
+*** 93,100 ****
+  AC_SUBST(DBUS_CFLAGS)
+  AC_SUBST(DBUS_LIBS)
+  
+! PKG_CHECK_MODULES(BLUEZ, bluez >= 4.99, dummy=yes,
+! 				AC_MSG_ERROR(BlueZ >= 4.99 is required))
+  AC_SUBST(BLUEZ_CFLAGS)
+  AC_SUBST(BLUEZ_LIBS)
+  
+--- 93,100 ----
+  AC_SUBST(DBUS_CFLAGS)
+  AC_SUBST(DBUS_LIBS)
+  
+! PKG_CHECK_MODULES(BLUEZ, bluez >= 4.0, dummy=yes,
+! 				AC_MSG_ERROR(BlueZ >= 4.0 is required))
+  AC_SUBST(BLUEZ_CFLAGS)
+  AC_SUBST(BLUEZ_LIBS)
+  

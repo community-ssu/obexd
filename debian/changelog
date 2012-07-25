@@ -1,273 +1,132 @@
-obexd (0.18-0maemo6+0m5) unstable; urgency=low
+obexd (0.46-1maemo2+cssu1) unstable; urgency=low
 
-  * This entry has been added by BIFH queue processor
-    version has been changed to 0.18-0maemo6+0m5
+  * Fix missing 0.vcf in phonebook_pull
+  * Fix IrMC to use full path
+  * Fix bugs in VW Touch Adapter
+     - removing X-SKYPE from VCARD
+     - add empty line after PHOTO;VALUE=uri: (not needed by RFC)
+  * Add initial support for call history (ich, och, mch, cch)
 
- -- Antti Julku <ext-antti.julku@nokia.com>  Thu, 27 May 2010 14:11:08 +0300
+ -- Ludek Finstrle <luf@pzkagis.cz>  Mon, 22 Jul 2012 14:27:09 +0200
 
-obexd (0.18-0maemo6) unstable; urgency=low
+obexd (0.46-1maemo1+cssu1) unstable; urgency=low
 
-  * Fixes: NB#149737 - Not possible to browse external memory card through
-    file manager in pc suite
+  * New upstream release.
+  * backport for glib, dbus and bluez from maemo
 
- -- Daniel Orstadius <ext-daniel.orstadius@nokia.com>  Wed, 19 May 2010 10:54:43 +0300
+ -- Ludek Finstrle <luf@pzkagis.cz>  Mon, 16 Jul 2012 16:56:03 +0200
 
-obexd (0.18-0maemo5) unstable; urgency=low
+obexd (0.45-1maemo1+cssu1) unstable; urgency=low
 
-  * Fixes: NB#132423 - obexd crash when bluetooth file receiving and at the
-    sametime select connection dialog was shown on the screen 
+  * use maemo patches from 0.37-0maemo1
+  * backport for EDS from maemo
+  * read default addressbook if no addressbook present
+  * backport for bluez from maemo
 
- -- Johan Hedberg <johan.hedberg@nokia.com>  Thu, 17 Dec 2009 17:10:55 +0200
+ -- Ludek Finstrle <luf@pzkagis.cz>  Tue, 03 Jul 2012 08:48:52 +0200
 
-obexd (0.18-0maemo4) unstable; urgency=low
+obexd (0.45-1) unstable; urgency=low
 
-  * Clone for PR1.2
-  * Fixes: NB#150421 - Power management decreases BT transfer speed 
+  * New upstream release.
+  * Update debian/control.
+    - Dump Standard-Version to 3.9.3 (no change needed).
+    - Dump version of libbluetooth-dev.
+      obexd need version 4.99 and more.
+    - Add libebook1.2-dev to Build-Depends.
+  * Update debian/rules.
+    - Add --with-phonebook=ebook.
 
- -- Johan Hedberg <johan.hedberg@nokia.com>  Mon, 14 Dec 2009 16:49:20 +0200
+ -- Nobuhiro Iwamatsu <iwamatsu@debian.org>  Thu, 08 Mar 2012 16:54:07 +0900
 
-obexd (0.18-0maemo1) unstable; urgency=low
+obexd (0.44-1) unstable; urgency=low
 
-  * New upstream release
-  * Changes from upstream ChangeLog since 0.15:
-     - Fix free space calculation on systems where fsfilcnt_t is 32-bit.
-     - Fix SendFiles to actually use the source argument.
-     - Fix Bluetooth initialization handling.
-     - Add support for full non-recursive build.
-     - Add support for mem-type attribute when in PC Suite mode.
-     - Make sure the ONLCR flag is cleared for the TTY.
-  * Fixes: NB#144661 - OPP sending from S60 phone to Rover fails
+  * New upstream release.
+  * Fix typo in package description (device -> devices).
+    (Closes: #636616)
 
- -- Johan Hedberg <johan.hedberg@nokia.com>  Thu, 29 Oct 2009 13:49:38 +0200
+ -- Nobuhiro Iwamatsu <iwamatsu@debian.org>  Tue, 24 Jan 2012 12:02:33 +0900
 
-obexd (0.15-0maemo1) unstable; urgency=low
+obexd (0.42-1) unstable; urgency=low
 
-  * New upstream release
-  * Changes from upstream ChangeLog since 0.14:
-     - Fix BtIO race condition in detecting a closed file descriptor.
-     - Fix handling of strict-aliasing rules.
-  * Fixes: NB#127966 - obex folder listing requires additional attributes to
-    support drag and drop in PC Suite
+  * New upstream release.
 
- -- Johan Hedberg <johan.hedberg@nokia.com>  Mon, 27 Jul 2009 15:37:02 +0300
+ -- Nobuhiro Iwamatsu <iwamatsu@debian.org>  Thu, 04 Aug 2011 12:26:37 +0900
 
-obexd (0.14-0maemo1) unstable; urgency=low
+obexd (0.41-1) unstable; urgency=low
 
-  * New upstream release (essentially same as 0.13-0maemo3 but cleaner
-    packaging due to lack of backported patches)
-  * Changes from upstream ChangeLog since 0.13:
-     - Fix issue with symlinks on TTY based servers.
-     - Add proper error logs for os_prepare_get failures.
-     - Add proper error checks for finding adapter details.
-     - Add support for RFCOMM channel property.
-     - Add support for PBAP integration with EDS.
+  * New upstream release.
+  * Update debian/control.
+    - Update Standards-Version to 3.9.2, no changes needed.
+    - Drop cdbs from Build-Depends.
+  * Converted from cdbs to debhelper.
+  * Update debian/rules.
+    enable usb and pcsuite plugins.
 
- -- Johan Hedberg <johan.hedberg@nokia.com>  Mon,  6 Jul 2009 23:25:26 +0300
+ -- Nobuhiro Iwamatsu <iwamatsu@debian.org>  Mon, 04 Jul 2011 23:57:21 +0900
 
-obexd (0.13-0maemo2) unstable; urgency=low
+obexd (0.40-2) unstable; urgency=low
 
-  * Fixes: NB#109842 - Coverity findings in obexd
-  * Fixes: NB#125104 - Sync engine is not detecting device in PC suite. 
+  * Upload to unstable.
 
- -- Johan Hedberg <johan.hedberg@nokia.com>  Fri,  3 Jul 2009 16:39:57 +0300
+ -- Nobuhiro Iwamatsu <iwamatsu@debian.org>  Thu, 10 Feb 2011 18:32:00 +0900
 
-obexd (0.13-0maemo1) unstable; urgency=low
+obexd (0.40-1) experimental; urgency=low
 
-  * New upstream release 
-  * Changes from upstream ChangeLog since 0.12:
-     - Fix issue when bluetoothd is restarted no record is registered.
-     - Fix registration of the Transfer interface for FTP sessions.
-     - Add FTP client test script.
-     - Add support for OBEX root folder setup script.
-     - Make root folder relative to $HOME if it doesn't start with '/'.
+  * New upstream release.
 
- -- Johan Hedberg <johan.hedberg@nokia.com>  Tue,  9 Jun 2009 06:03:03 +0300
+ -- Nobuhiro Iwamatsu <iwamatsu@debian.org>  Sat, 05 Feb 2011 07:01:41 +0900
 
-obexd (0.12-0maemo4) unstable; urgency=low
+obexd (0.39-1) experimental; urgency=low
 
-  * Backport patches for root folder initialization.
-  * Add scripts for root folder initialization 
-  * Fixes: NB#101427 - obexd does not seem to understand symbolic directory
-    links
+  * New upstream release.
 
- -- Johan Hedberg <johan.hedberg@nokia.com>  Thu,  4 Jun 2009 17:43:45 +0300
+ -- Nobuhiro Iwamatsu <iwamatsu@debian.org>  Wed, 12 Jan 2011 20:35:41 +0900
 
-obexd (0.12-0maemo3) unstable; urgency=low
+obexd (0.37-1) experimental; urgency=low
 
-  * Change root folder to /home/user/.obex-root and create symlinks there 
-  * Fixes: NB#101427 - obexd does not seem to understand symbolic directory
-    links
+  * New upstream release.
+  * Update debian/control.
+    - Bumped standards-version to 3.9.1.
+    - Fix path for Vcs-Browser.
 
- -- Johan Hedberg <johan.hedberg@nokia.com>  Wed,  3 Jun 2009 16:24:08 +0300
+ -- Nobuhiro Iwamatsu <iwamatsu@debian.org>  Thu, 02 Dec 2010 12:17:14 +0900
 
-obexd (0.12-0maemo2) unstable; urgency=low
+obexd (0.33-1) unstable; urgency=low
 
-  * Backport BtIO related patch
-  * Fixes: NB#117978 - Obex SDP records (FTP & OPP) missing after bluetoothd
-    dies and is restarted 
+  * New upstream release.
 
- -- Johan Hedberg <johan.hedberg@nokia.com>  Thu, 21 May 2009 23:10:15 +0300
+ -- Nobuhiro Iwamatsu <iwamatsu@debian.org>  Fri, 10 Sep 2010 17:18:16 +0900
 
-obexd (0.12-0maemo1) unstable; urgency=low
+obexd (0.28-1) unstable; urgency=low
 
-  * New upstream release 
-  * Changes from upstream ChangeLog since 0.11:
-     - Fix various format string issues.
-     - Fix handling of authorizations with no reply.
-     - Add support for using BtIO helper library.
-     - Add signal handling for toggling debug messages.
-     - Add signal handling for USB TTY details.
-     - Add test script for folder listing.
-  * Fixes: NB#112529 - Obexd crashes when trying to reconnect while accept
-    connection dialog is shown
-  * Fixes: NB#113337 - Fix obexd for new USB/sync requirements
-  * Fixes: NB#109900 - Accept connection dialog stays on screen after
-    connection is disconnected
-
- -- Johan Hedberg <johan.hedberg@nokia.com>  Mon,  4 May 2009 00:03:45 +0300
+  * New upstream release (Closes: #585775).
+  * Add libical-dev to Build-depends.
 
-obexd (0.11-0maemo1) unstable; urgency=low
-
-  * New upstream release 
-  * Changes from upstream ChangeLog since 0.10:
-     - Fix bug when canceling an authorization request.
-     - Fix broken handling of successful received D-Bus reply.
-     - Fix broken escape handling for filenames.
-     - Fix blocking issue with opened TTY.
-  * Fixes: NB#112529 - Obexd crashes when trying to reconnect while accept
-    connection dialog is shown
-  * Fixes: NB#112493 - Unable to easily fetch files containing special
-    character from obexd over bluetooth FTP
+ -- Nobuhiro Iwamatsu <iwamatsu@debian.org>  Thu, 17 Jun 2010 06:19:18 +0900
 
- -- Johan Hedberg <johan.hedberg@nokia.com>  Sun, 26 Apr 2009 21:30:29 +0300
+obexd (0.24-1) unstable; urgency=low
 
-obexd (0.10-0maemo2) unstable; urgency=low
+  * New upstream release.
 
-  * Backport fix for pending call cancelation. Might fix: NB#105927 
+ -- Nobuhiro Iwamatsu <iwamatsu@debian.org>  Mon, 17 May 2010 18:34:30 +0900
 
- -- Johan Hedberg <johan.hedberg@nokia.com>  Sat, 11 Apr 2009 13:18:58 +0300
+obexd (0.23-1) unstable; urgency=low
 
-obexd (0.10-0maemo1) unstable; urgency=low
+  * New upstream release (Closes: #558710).
+  * Update debian/control.
+    - Remove Filippo Giunchedi <filippo@debian.org> from uploaders.
+    - Add Nobuhiro Iwamatsu to Uploaders (Closes: #564570).
+    - Bumped standards-version to 3.8.4.
+    - Update description (Closes: #541880).
+  * Add debian/source/format.
+    Set source format to "1.0". 
 
-  * New upstream release
-  * Changes in upstream ChangeLog since 0.8:
-     - Fix showing symlinks as files.
-     - Fix error codes on OBEX get operations.
-     - Fix "not found" error for delete operations.
-     - Fix NULL pointer usage of 'nonnull' parameter.
-     - Fix TTY handling with PC Suite mode.
-     - Fix D-Bus NameOwnerChanged watch handling.
-     - Fix O_NOCTTY issue when opening TTY device.
-     - Add support for verbose compiler warnings.
-     - Add support for application parameters.
-     - Add support for generic GetCapabilities command.
-     - Add initial support for Synchronization profile.
-     - Add basic implementation of Phonebook Access profile.
-     - Add basic Phonebook Access client support.
-  * Might fix: NB#105611, NB#104711, NB#110496, NB#110549, NB#110178
-  * Note: this requires a kernel with the fix for NB#109936
+ -- Nobuhiro Iwamatsu <iwamatsu@debian.org>  Tue, 27 Apr 2010 04:17:15 +0900
 
- -- Johan Hedberg <johan.hedberg@nokia.com>  Thu,  9 Apr 2009 21:16:20 +0300
+obexd (0.14-1) unstable; urgency=low
 
-obexd (0.8-0maemo3) unstable; urgency=low
+  * First upload (Closes: #528061)
+    + build obexd-client and obexd-server so only the latter must conflict
+    with obex-data-server as they both use org.openobex dbus name
 
-  * Don't open tty upon startup. Fixes: NB#100759, NB#100939 
-
- -- Johan Hedberg <johan.hedberg@nokia.com>  Fri,  3 Apr 2009 12:41:29 +0300
-
-obexd (0.8-0maemo2) unstable; urgency=low
-
-  * Backport O_NOCTTY patch. Fixes: NB#97887 
-
- -- Johan Hedberg <johan.hedberg@nokia.com>  Wed, 28 Jan 2009 15:00:41 +0000
-
-obexd (0.8-0maemo1) unstable; urgency=low
-
-  * New upstream release
-  * Changes from ChangeLog since 0.7:
-     - Fix memory leaks with asynchronous operations.
-     - Fix issues with handling larger MTU sizes.
-     - Fix session and client disconnect handling.
-     - Add basic Nokia PC Suite support.
-     - Add support for reinitializing TTY server.
-  * Use special masync script for capability object. Fixes: NB#91609
-
- -- Johan Hedberg <johan.hedberg@nokia.com>  Thu, 20 Nov 2008 12:04:21 +0000
-
-obexd (0.7-0maemo1) unstable; urgency=low
-
-  * New upstream release
-  * Changes from ChangeLog since 0.6:
-     - Fix issue with transfers larger than session buffer size.
-     - Fix various memory leaks within session handling.
-     - Add support for OBEX client session interface.
-     - Add support for File Transfer client interface.
-     - Add support for using the any adapter object path.
-  * Monitor bluetoothd and use the new "any" adapter. Fixes: NB#90474
-
- -- Johan Hedberg <johan.hedberg@nokia.com>  Sun,  9 Nov 2008 20:02:35 +0000
-
-obexd (0.6-0maemo1) unstable; urgency=low
-
-  * New upstream version. Changes from ChangeLog since 0.4:
-     - Use BlueZ service for FTP authorization.
-     - Use BlueZ service for service records.
-     - Never send an OBEX abort for a server.
-     - Set buffer to NULL after freeing it.
-     - Include the correct COPYING file.
-     - Add initial obex-client support.
-     - Add missing API documenation.
-     - Rename D-Bus service files.
-  * Enable USB support through --tty /dev/ttyGS0
-
- -- Johan Hedberg <johan.hedberg@nokia.com>  Fri, 17 Oct 2008 22:31:46 +0000
-
-obexd (0.4-0maemo1) unstable; urgency=low
-
-  * New upstream release. Changes from ChangeLog since 0.3:
-     - Add plugin infrastructure.
-     - Add support for TTY transport.
-     - Fix case when the client doesn't send length header.
-     - Use LM_AUTH and LM_ENCRYPT instead of LM_SECURE.
-  * Fix PUT/Delete detection without length header. Fixes: NB#88563
-
- -- Johan Hedberg <johan.hedberg@nokia.com>  Fri, 19 Sep 2008 03:06:40 +0000
-
-obexd (0.3-0maemo3) unstable; urgency=low
-
-  * Only enable socket security if specified. Fixes: NB#88520
-
- -- Johan Hedberg <johan.hedberg@nokia.com>  Tue, 16 Sep 2008 19:31:09 +0000
-
-obexd (0.3-0maemo2) unstable; urgency=low
-
-  * Recompile against libbluetooth3
-
- -- Johan Hedberg <johan.hedberg@nokia.com>  Thu,  7 Aug 2008 09:28:48 +0000
-
-obexd (0.3-0maemo1) unstable; urgency=low
-
-  * New upstream release. Changes from ChangeLog:
-     - Add support for dynamic capability file.
-     - Removing incomplete files on error.
-     - Multiple bug fixes.
-
- -- Johan Hedberg <johan.hedberg@nokia.com>  Fri, 25 Jul 2008 09:22:59 +0000
-
-obexd (0.2-0maemo1) unstable; urgency=low
-
-  * New upstream release. Changes from ChangeLog:
-     - Add folder listing support.
-     - Add D-Bus session interface.
-     - Check for dbus_watch_get_unix_fd function.
-  * Implemented: NR#192005
-
- -- Johan Hedberg <johan.hedberg@nokia.com>  Fri,  4 Jul 2008 10:44:24 +0000
-
-obexd (0.1-0maemo1) unstable; urgency=low
-
-  * Initial release
-  * Implemented: NR#192004
-  * Partial: NR#192005
-
- -- Johan Hedberg <johan.hedberg@nokia.com>  Fri, 27 Jun 2008 12:09:09 +0000
+ -- Filippo Giunchedi <filippo@debian.org>  Wed, 01 Jul 2009 12:40:00 +0200

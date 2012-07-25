@@ -1,27 +1,38 @@
---- src/manager.c	2009-12-14 14:29:17.000000000 +0200
-+++ src/manager.c	2009-12-14 14:30:10.000000000 +0200
-@@ -799,7 +799,14 @@
- 
- void emit_transfer_progress(guint32 id, guint32 total, guint32 transfered)
- {
--	gchar *path = g_strdup_printf("/transfer%u", id);
-+	gchar *path;
-+	static time_t last_update = 0;
-+	time_t now = time(NULL);
-+
-+	if (total != transfered && last_update == now)
-+		return;
-+
-+	path = g_strdup_printf("/transfer%u", id);
- 
- 	g_dbus_emit_signal(connection, path,
- 			TRANSFER_INTERFACE, "Progress",
-@@ -807,6 +814,8 @@
- 			DBUS_TYPE_INT32, &transfered,
- 			DBUS_TYPE_INVALID);
- 
-+	last_update = now;
-+
- 	g_free(path);
- }
- 
+diff -cr src/manager.c src/manager.c
+*** src/manager.c	2012-01-11 23:53:53.000000000 +0100
+--- src/manager.c	2012-07-03 08:21:13.110714715 +0200
+***************
+*** 407,413 ****
+  static void emit_transfer_progress(struct obex_session *os, uint32_t total,
+  							uint32_t transfered)
+  {
+! 	char *path = g_strdup_printf("/transfer%u", os->id);
+  
+  	g_dbus_emit_signal(connection, path,
+  			TRANSFER_INTERFACE, "Progress",
+--- 407,420 ----
+  static void emit_transfer_progress(struct obex_session *os, uint32_t total,
+  							uint32_t transfered)
+  {
+! 	char *path;
+! 	static time_t last_update = 0;
+! 	time_t now = time(NULL);
+! 
+! 	if (total != transfered && last_update == now)
+! 		return;
+! 
+! 	path = g_strdup_printf("/transfer%u", os->id);
+  
+  	g_dbus_emit_signal(connection, path,
+  			TRANSFER_INTERFACE, "Progress",
+***************
+*** 415,420 ****
+--- 422,429 ----
+  			DBUS_TYPE_INT32, &transfered,
+  			DBUS_TYPE_INVALID);
+  
++ 	last_update = now;
++ 
+  	g_free(path);
+  }
+  

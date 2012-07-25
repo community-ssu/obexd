@@ -5,11 +5,20 @@ include /usr/share/cdbs/1/rules/simple-patchsys.mk
 include /usr/share/cdbs/1/class/autotools.mk
 
 DEB_DH_STRIP_ARGS := --dbg-package=obexd
-DEB_CONFIGURE_EXTRA_FLAGS := --enable-debug --libexec=/usr/lib/obex
+DEB_CONFIGURE_EXTRA_FLAGS := --enable-debug \
+		--enable-usb \
+		--enable-pcsuite \
+		--prefix=/usr \
+		--libexec=/usr/lib/obex \
+		--mandir=/usr/share/man \
+		--sysconfdir=/etc \
+		--with-phonebook=ebook \
+		--with-rtcom-eventlogger=yes
 
 install/obexd::
-	install -D -m 0755 debian/obex-root-setup $(DEB_DESTDIR)/usr/bin/obex-root-setup
 	install -D -m 0755 debian/create-symlinks $(DEB_DESTDIR)/etc/obex/root-setup.d/000_create-symlinks
+	install -D -m 0755 debian/obex-root-setup $(DEB_DESTDIR)/usr/bin/obex-root-setup
 
 install/obexd-test::
-	install -D -m 0755 test/simple-agent $(DEB_DESTDIR)/usr/bin/obexd-simple-agent
+	install -D -m 0754 test/simple-agent $(DEB_DESTDIR)/usr/bin/obexd-simple-agent
+

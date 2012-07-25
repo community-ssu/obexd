@@ -1,0 +1,181 @@
+diff -cr plugins/usb.c plugins/usb.c
+*** plugins/usb.c	2012-02-29 19:49:22.000000000 +0100
+--- plugins/usb.c	2012-07-03 08:18:31.936719756 +0200
+***************
+*** 51,56 ****
+--- 51,57 ----
+  static guint usb_reconnecting = 0;
+  static guint usb_watch = 0;
+  static DBusConnection *connection = NULL;
++ static int signal_pipe[2];
+  
+  #define USB_RX_MTU 65535
+  #define USB_TX_MTU 65535
+***************
+*** 170,175 ****
+--- 171,178 ----
+  
+  static void sig_usb(int sig)
+  {
++ 	if (write(signal_pipe[1], &sig, sizeof(sig)) != sizeof(sig))
++ 		error("unable to write to signal pipe");
+  }
+  
+  static void usb_set_mode(struct obex_server *server, const char *mode)
+***************
+*** 180,188 ****
+  		usb_connect(server);
+  	else if (g_str_equal(mode, "USB disconnected") == TRUE)
+  		usb_disconnect(server);
+  }
+  
+! static gboolean handle_signal(DBusConnection *connection,
+  				DBusMessage *message, void *user_data)
+  {
+  	struct obex_server *server = user_data;
+--- 183,193 ----
+  		usb_connect(server);
+  	else if (g_str_equal(mode, "USB disconnected") == TRUE)
+  		usb_disconnect(server);
++ 	else
++ 		error("got unexpected dbus signal: %s", mode);
+  }
+  
+! static gboolean handle_dbus_signal(DBusConnection *connection,
+  				DBusMessage *message, void *user_data)
+  {
+  	struct obex_server *server = user_data;
+***************
+*** 197,206 ****
+  	return TRUE;
+  }
+  
+  static void usb_stop(void *data)
+  {
+! 	guint id = GPOINTER_TO_UINT(data);
+! 	g_dbus_remove_watch(connection, id);
+  }
+  
+  static void mode_request_reply(DBusPendingCall *call, void *user_data)
+--- 202,243 ----
+  	return TRUE;
+  }
+  
++ static gboolean handle_io_signal(GIOChannel *io, GIOCondition cond,
++ 				void *user_data)
++ {
++ 	struct obex_server *server = user_data;
++ 	int sig, fd = g_io_channel_unix_get_fd(io);
++ 
++ 	if (read(fd, &sig, sizeof(sig)) != sizeof(sig)) {
++ 		error("handle_signal: unable to read signal from pipe");
++ 		return TRUE;
++ 	}
++ 
++ 	switch (sig) {
++ 	case SIGUSR1:
++ 		DBG("SIGUSR1");
++ 		usb_connect(server);
++ 		break;
++ 	case SIGHUP:
++ 		DBG("SIGHUP");
++ 		usb_disconnect(server);
++ 		break;
++ 	default:
++ 		error("handle_signal: got unexpected signal %d", sig);
++ 		break;
++ 	}
++ 
++ 	return TRUE;
++ }
++ 
+  static void usb_stop(void *data)
+  {
+! 	guint *id = data;
+! 
+! 	g_dbus_remove_watch(connection, id[0]);
+! 	g_source_remove(id[1]);
+! 
+! 	g_free(id);
+  }
+  
+  static void mode_request_reply(DBusPendingCall *call, void *user_data)
+***************
+*** 228,234 ****
+  
+  static void *usb_start(struct obex_server *server, int *err)
+  {
+! 	guint id;
+  	DBusMessage *msg;
+  	DBusPendingCall *call;
+  
+--- 265,272 ----
+  
+  static void *usb_start(struct obex_server *server, int *err)
+  {
+! 	guint *id = g_new (guint, 2);;
+! 	GIOChannel *io;
+  	DBusMessage *msg;
+  	DBusPendingCall *call;
+  
+***************
+*** 248,262 ****
+  	dbus_pending_call_unref(call);
+  	dbus_message_unref(msg);
+  
+! 	id = g_dbus_add_signal_watch(connection, NULL, NULL,
+  					"com.meego.usb_moded",
+  					"sig_usb_state_ind",
+! 					handle_signal, server, NULL);
+  
+  	if (err != NULL)
+  		*err = 0;
+  
+! 	return GUINT_TO_POINTER(id);
+  
+  fail:
+  	if (err != NULL)
+--- 286,304 ----
+  	dbus_pending_call_unref(call);
+  	dbus_message_unref(msg);
+  
+! 	id[0] = g_dbus_add_signal_watch(connection, NULL, NULL,
+  					"com.meego.usb_moded",
+  					"sig_usb_state_ind",
+! 					handle_dbus_signal, server, NULL);
+! 
+! 	io = g_io_channel_unix_new(signal_pipe[0]);
+! 	id[1] = g_io_add_watch(io, G_IO_IN, handle_io_signal, server);
+! 	g_io_channel_unref(io);
+  
+  	if (err != NULL)
+  		*err = 0;
+  
+! 	return id;
+  
+  fail:
+  	if (err != NULL)
+***************
+*** 276,281 ****
+--- 318,326 ----
+  {
+  	struct sigaction sa;
+  
++ 	if (pipe(signal_pipe) < 0)
++ 		return -errno;
++ 
+  	memset(&sa, 0, sizeof(sa));
+  	sa.sa_handler = sig_usb;
+  	sigaction(SIGUSR1, &sa, NULL);
+***************
+*** 293,298 ****
+--- 338,346 ----
+  	if (connection)
+  		dbus_connection_unref(connection);
+  
++ 	close(signal_pipe[0]);
++ 	close(signal_pipe[1]);
++ 
+  	obex_transport_driver_unregister(&driver);
+  }
+  

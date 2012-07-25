@@ -1,7 +1,7 @@
 AC_PREREQ(2.60)
-AC_INIT(obexd, 0.18)
+AC_INIT(obexd, 0.46)
 
-AM_INIT_AUTOMAKE([foreign subdir-objects])
+AM_INIT_AUTOMAKE([foreign subdir-objects color-tests])
 AM_CONFIG_HEADER(config.h)
 
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
@@ -30,9 +30,12 @@ COMPILER_FLAGS
 AC_LANG_C
 
 AC_PROG_CC
+AM_PROG_CC_C_O
 AC_PROG_CC_PIE
 AC_PROG_INSTALL
 AC_PROG_SED
+
+AC_PATH_READLINE
 
 m4_define([_LT_AC_TAGCONFIG], [])
 m4_ifdef([AC_LIBTOOL_TAGS], [AC_LIBTOOL_TAGS([])])
@@ -66,26 +69,18 @@ fi
 AC_CHECK_LIB(dl, dlopen, dummy=yes,
 			AC_MSG_ERROR(dynamic linking loader is required))
 
-PKG_CHECK_MODULES(GLIB, glib-2.0 >= 2.16, dummy=yes,
-				AC_MSG_ERROR(libglib 2.16 or later is required))
+PKG_CHECK_MODULES(GLIB, glib-2.0 >= 2.28, dummy=yes,
+				AC_MSG_ERROR(GLib >= 2.28 is required))
 AC_SUBST(GLIB_CFLAGS)
 AC_SUBST(GLIB_LIBS)
 
-PKG_CHECK_MODULES(DBUS, dbus-1, dummy=yes,
-				AC_MSG_ERROR(libdbus-1 is required))
-AC_CHECK_LIB(dbus-1, dbus_watch_get_unix_fd, dummy=yes,
-	AC_DEFINE(NEED_DBUS_WATCH_GET_UNIX_FD, 1,
-		[Define to 1 if you need the dbus_watch_get_unix_fd() function.]))
+PKG_CHECK_MODULES(DBUS, dbus-1 >= 1.4, dummy=yes,
+				AC_MSG_ERROR(D-Bus >= 1.4 is required))
 AC_SUBST(DBUS_CFLAGS)
 AC_SUBST(DBUS_LIBS)
 
-PKG_CHECK_MODULES(OPENOBEX, openobex, dummy=yes,
-				AC_MSG_ERROR(libopenobex is required))
-AC_SUBST(OPENOBEX_CFLAGS)
-AC_SUBST(OPENOBEX_LIBS)
-
-PKG_CHECK_MODULES(BLUEZ, bluez, dummy=yes,
-				AC_MSG_ERROR(libbluetooth is required))
+PKG_CHECK_MODULES(BLUEZ, bluez >= 4.99, dummy=yes,
+				AC_MSG_ERROR(BlueZ >= 4.99 is required))
 AC_SUBST(BLUEZ_CFLAGS)
 AC_SUBST(BLUEZ_LIBS)
 
@@ -103,13 +98,34 @@ AC_ARG_ENABLE(debug, AC_HELP_STRING([--enable-debug],
 	fi
 ])
 
-AC_ARG_ENABLE(ebook, AC_HELP_STRING([--enable-ebook],
-				[enable EBook plugin]), [
-	enable_ebook=${enableval}
+messages_driver=dummy
+AC_ARG_WITH(messages, AC_HELP_STRING([--with-messages=DRIVER], [select messages driver]), [
+	if (test "${withval}" = "no"); then
+		messages_driver=dummy;
+	else
+		messages_driver=${withval};
+	fi
 ])
-AM_CONDITIONAL(EBOOK, test "${enable_ebook}" = "yes")
 
-if (test "${enable_ebook}" = "yes"); then
+AC_SUBST([MESSAGES_DRIVER], [messages-${messages_driver}.c])
+
+phonebook_driver=dummy
+AC_ARG_WITH(phonebook, AC_HELP_STRING([--with-phonebook=DRIVER], [select phonebook driver]), [
+	if (test "${withval}" = "no"); then
+		phonebook_driver=dummy;
+	else
+		phonebook_driver=${withval};
+	fi
+])
+
+if (test "${phonebook_driver}" = "dummy"); then
+	PKG_CHECK_MODULES(LIBICAL, libical, dummy=yes,
+					AC_MSG_ERROR(libical is required))
+	AC_SUBST(LIBICAL_CFLAGS)
+	AC_SUBST(LIBICAL_LIBS)
+fi
+
+if (test "${phonebook_driver}" = "ebook"); then
 	AC_DEFINE(NEED_THREADS, 1, [Define if threading support is required])
 
 	PKG_CHECK_MODULES(EBOOK, libebook-1.2, dummy=yes,
@@ -123,6 +139,33 @@ if (test "${enable_ebook}" = "yes"); then
 	AC_SUBST(GTHREAD_LIBS)
 fi
 
+if (test "${phonebook_driver}" = "tracker"); then
+	PKG_CHECK_MODULES(TRACKER_09, tracker-sparql-0.9, [
+			TRACKER_CFLAGS=${TRACKER_09_CFLAGS}
+			TRACKER_LIBS=${TRACKER_09_LIBS}
+		], [
+			PKG_CHECK_MODULES(TRACKER_10, tracker-sparql-0.10, [
+					TRACKER_CFLAGS=${TRACKER_10_CFLAGS}
+					TRACKER_LIBS=${TRACKER_10_LIBS}
+			], AC_MSG_ERROR(libtracker-sparql is required))])
+	AC_SUBST(TRACKER_CFLAGS)
+	AC_SUBST(TRACKER_LIBS)
+fi
+
+AC_SUBST([PHONEBOOK_DRIVER], [phonebook-${phonebook_driver}.c])
+
+AC_ARG_ENABLE(usb, AC_HELP_STRING([--enable-usb],
+				[enable USB plugin]), [
+	enable_usb=${enableval}
+])
+AM_CONDITIONAL(USB, test "${enable_usb}" = "yes")
+
+AC_ARG_ENABLE(pcsuite, AC_HELP_STRING([--enable-pcsuite],
+				[enable Nokia PcSuite plugin]), [
+	enable_pcsuite=${enableval}
+])
+AM_CONDITIONAL(NOKIA_PCSUITE, test "${enable_pcsuite}" = "yes")
+
 AC_ARG_ENABLE(server, AC_HELP_STRING([--disable-server],
 				[disable compilation of OBEX server]), [
 	enable_server=${enableval}
@@ -134,5 +177,7 @@ AC_ARG_ENABLE(client, AC_HELP_STRING([--disable-client],
 	enable_client=${enableval}
 ])
 AM_CONDITIONAL(CLIENT, test "${enable_client}" != "no")
+
+AM_CONDITIONAL(READLINE, test "${readline_found}" = "yes")
 
 AC_OUTPUT(Makefile)

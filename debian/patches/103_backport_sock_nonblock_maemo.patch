@@ -1,0 +1,16 @@
+diff -cr unit/util.c unit/util.c
+*** unit/util.c	Wed Jan 11 17:53:53 2012
+--- unit/util.c	Fri Jun 15 15:12:59 2012
+***************
+*** 31,36 ****
+--- 31,40 ----
+  
+  #include "util.h"
+  
++ #ifndef SOCK_NONBLOCK
++ #define SOCK_NONBLOCK 04000
++ #endif
++ 
+  GQuark test_error_quark(void)
+  {
+  	return g_quark_from_static_string("test-error-quark");

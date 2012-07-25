@@ -1,0 +1,2 @@
+debian/tmp/usr/lib/obex/obex-client
+debian/tmp/usr/share/dbus-1/services/obex-client.service

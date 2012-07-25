@@ -2,9 +2,8 @@
  *
  *  OBEX Server
  *
- *  Copyright (C) 2007-2008  Nokia Corporation
- *  Copyright (C) 2007-2008  Instituto Nokia de Tecnologia (INdT)
- *  Copyright (C) 2007-2009  Marcel Holtmann <marcel@holtmann.org>
+ *  Copyright (C) 2007-2010  Nokia Corporation
+ *  Copyright (C) 2007-2010  Marcel Holtmann <marcel@holtmann.org>
  *
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -38,71 +37,174 @@
 #include <sys/stat.h>
 #include <sys/statvfs.h>
 #include <fcntl.h>
+#include <inttypes.h>
 
 #include <glib.h>
+#include <gobex/gobex.h>
 
-#include <openobex/obex.h>
-#include <openobex/obex_const.h>
-
-#include "logging.h"
+#include "obexd.h"
+#include "log.h"
 #include "obex.h"
-#include "dbus.h"
+#include "obex-priv.h"
+#include "server.h"
+#include "manager.h"
+#include "mimetype.h"
+#include "service.h"
+#include "transport.h"
+#include "btio.h"
 
-/* Default MTU's */
-#define DEFAULT_RX_MTU 32767
-#define DEFAULT_TX_MTU 32767
+/* Challenge request */
+#define NONCE_TAG 0x00
+#define OPTIONS_TAG 0x01 /* Optional */
+#define REALM_TAG 0x02 /* Optional */
 
-#define TARGET_SIZE 16
+#define NONCE_LEN 16
 
-static const guint8 FTP_TARGET[TARGET_SIZE] = {
-			0xF9, 0xEC, 0x7B, 0xC4,  0x95, 0x3C, 0x11, 0xD2,
-			0x98, 0x4E, 0x52, 0x54,  0x00, 0xDC, 0x9E, 0x09  };
-
-static const guint8 PBAP_TARGET[TARGET_SIZE] = {
-			0x79, 0x61, 0x35, 0xF0,  0xF0, 0xC5, 0x11, 0xD8,
-			0x09, 0x66, 0x08, 0x00,  0x20, 0x0C, 0x9A, 0x66  };
-
-/* Connection ID */
-static guint32 cid = 0x0000;
+/* Challenge response */
+#define DIGEST_TAG 0x00
+#define USER_ID_TAG 0x01 /* Optional */
+#define DIGEST_NONCE_TAG 0x02 /* Optional */
 
 static GSList *sessions = NULL;
 
 typedef struct {
-	guint8  version;
-	guint8  flags;
-	guint16 mtu;
+	uint8_t  version;
+	uint8_t  flags;
+	uint16_t mtu;
 } __attribute__ ((packed)) obex_connect_hdr_t;
 
-struct obex_commands opp = {
-	.get		= opp_get,
-	.put		= opp_put,
-	.chkput		= opp_chkput,
+struct auth_header {
+	uint8_t tag;
+	uint8_t len;
+	uint8_t val[0];
+} __attribute__ ((packed));
+
+/* Possible commands */
+static struct {
+	int cmd;
+	const char *name;
+} obex_command[] = {
+	{ G_OBEX_OP_CONNECT,	"CONNECT"	},
+	{ G_OBEX_OP_DISCONNECT,	"DISCONNECT"	},
+	{ G_OBEX_OP_PUT,	"PUT"		},
+	{ G_OBEX_OP_GET,	"GET"		},
+	{ G_OBEX_OP_SETPATH,	"SETPATH"	},
+	{ G_OBEX_OP_SESSION,	"SESSION"	},
+	{ G_OBEX_OP_ABORT,	"ABORT"		},
+	{ G_OBEX_OP_ACTION,	"ACTION"	},
+	{ 0xFF,			NULL		},
 };
 
-struct obex_commands ftp = {
-	.get		= ftp_get,
-	.put		= ftp_put,
-	.chkput		= ftp_chkput,
-	.setpath	= ftp_setpath,
+/* Possible Response */
+static struct {
+	int rsp;
+	const char *name;
+} obex_response[] = {
+	{ G_OBEX_RSP_CONTINUE,			"CONTINUE"		},
+	{ G_OBEX_RSP_SUCCESS,			"SUCCESS"		},
+	{ G_OBEX_RSP_CREATED,			"CREATED"		},
+	{ G_OBEX_RSP_ACCEPTED,			"ACCEPTED"		},
+	{ G_OBEX_RSP_NON_AUTHORITATIVE,		"NON_AUTHORITATIVE"	},
+	{ G_OBEX_RSP_NO_CONTENT,		"NO_CONTENT"		},
+	{ G_OBEX_RSP_RESET_CONTENT,		"RESET_CONTENT"		},
+	{ G_OBEX_RSP_PARTIAL_CONTENT,		"PARTIAL_CONTENT"	},
+	{ G_OBEX_RSP_MULTIPLE_CHOICES,		"MULTIPLE_CHOICES"	},
+	{ G_OBEX_RSP_MOVED_PERMANENTLY,		"MOVED_PERMANENTLY"	},
+	{ G_OBEX_RSP_MOVED_TEMPORARILY,		"MOVED_TEMPORARILY"	},
+	{ G_OBEX_RSP_SEE_OTHER,			"SEE_OTHER"		},
+	{ G_OBEX_RSP_NOT_MODIFIED,		"NOT_MODIFIED"		},
+	{ G_OBEX_RSP_USE_PROXY,			"USE_PROXY"		},
+	{ G_OBEX_RSP_BAD_REQUEST,		"BAD_REQUEST"		},
+	{ G_OBEX_RSP_UNAUTHORIZED,		"UNAUTHORIZED"		},
+	{ G_OBEX_RSP_PAYMENT_REQUIRED,		"PAYMENT_REQUIRED"	},
+	{ G_OBEX_RSP_FORBIDDEN,			"FORBIDDEN"		},
+	{ G_OBEX_RSP_NOT_FOUND,			"NOT_FOUND"		},
+	{ G_OBEX_RSP_METHOD_NOT_ALLOWED,	"METHOD_NOT_ALLOWED"	},
+	{ G_OBEX_RSP_NOT_ACCEPTABLE,		"NOT_ACCEPTABLE"	},
+	{ G_OBEX_RSP_PROXY_AUTH_REQUIRED,	"PROXY_AUTH_REQUIRED"	},
+	{ G_OBEX_RSP_REQUEST_TIME_OUT,		"REQUEST_TIME_OUT"	},
+	{ G_OBEX_RSP_CONFLICT,			"CONFLICT"		},
+	{ G_OBEX_RSP_GONE,			"GONE"			},
+	{ G_OBEX_RSP_LENGTH_REQUIRED,		"LENGTH_REQUIRED"	},
+	{ G_OBEX_RSP_PRECONDITION_FAILED,	"PRECONDITION_FAILED"	},
+	{ G_OBEX_RSP_REQ_ENTITY_TOO_LARGE,	"REQ_ENTITY_TOO_LARGE"	},
+	{ G_OBEX_RSP_REQ_URL_TOO_LARGE,		"REQ_URL_TOO_LARGE"	},
+	{ G_OBEX_RSP_UNSUPPORTED_MEDIA_TYPE,	"UNSUPPORTED_MEDIA_TYPE"},
+	{ G_OBEX_RSP_INTERNAL_SERVER_ERROR,	"INTERNAL_SERVER_ERROR"	},
+	{ G_OBEX_RSP_NOT_IMPLEMENTED,		"NOT_IMPLEMENTED"	},
+	{ G_OBEX_RSP_BAD_GATEWAY,		"BAD_GATEWAY"		},
+	{ G_OBEX_RSP_SERVICE_UNAVAILABLE,	"SERVICE_UNAVAILABLE"	},
+	{ G_OBEX_RSP_GATEWAY_TIMEOUT,		"GATEWAY_TIMEOUT"	},
+	{ G_OBEX_RSP_VERSION_NOT_SUPPORTED,	"VERSION_NOT_SUPPORTED"	},
+	{ G_OBEX_RSP_DATABASE_FULL,		"DATABASE_FULL"		},
+	{ G_OBEX_RSP_DATABASE_LOCKED,		"DATABASE_LOCKED"	},
+	{ 0xFF,					NULL			},
 };
 
-struct obex_commands pbap = {
-	.get		= pbap_get,
-	.setpath	= pbap_setpath,
-};
+static gboolean handle_async_io(void *object, int flags, int err,
+						void *user_data);
+
+static void print_event(int cmd, int rsp)
+{
+	const char *cmdstr = NULL, *rspstr = NULL;
+	int i;
+	static int lastcmd;
+
+	if (cmd < 0)
+		cmd = lastcmd;
+	else
+		lastcmd = cmd;
+
+	for (i = 0; obex_command[i].cmd != 0xFF; i++) {
+		if (obex_command[i].cmd != cmd)
+			continue;
+		cmdstr = obex_command[i].name;
+	}
+
+	for (i = 0; obex_response[i].rsp != 0xFF; i++) {
+		if (obex_response[i].rsp != rsp)
+			continue;
+		rspstr = obex_response[i].name;
+	}
+
+	obex_debug("%s(0x%x), %s(0x%x)", cmdstr, cmd, rspstr, rsp);
+}
+
+static void os_set_response(struct obex_session *os, int err)
+{
+	uint8_t rsp;
+
+	rsp = g_obex_errno_to_rsp(err);
+
+	print_event(-1, rsp);
+
+	g_obex_send_rsp(os->obex, rsp, NULL, G_OBEX_HDR_INVALID);
+}
+
+static void os_session_mark_aborted(struct obex_session *os)
+{
+	/* the session was already cancelled/aborted or size in unknown */
+	if (os->aborted || os->size == OBJECT_SIZE_UNKNOWN)
+		return;
+
+	os->aborted = (os->size != os->offset);
+}
 
 static void os_reset_session(struct obex_session *os)
 {
-	if (os->fd > 0) {
-		close(os->fd);
-		os->fd = -1;
-		if (os->aborted && os->cmd == OBEX_CMD_PUT && os->current_folder) {
-			gchar *path;
-			path = g_build_filename(os->current_folder, os->name, NULL);
-			unlink(path);
-			g_free(path);
-		}
+	os_session_mark_aborted(os);
+
+	if (os->object) {
+		os->driver->set_io_watch(os->object, NULL, NULL);
+		os->driver->close(os->object);
+		if (os->aborted && os->cmd == G_OBEX_OP_PUT && os->path &&
+				os->driver->remove)
+			os->driver->remove(os->path);
 	}
+
+	if (os->service && os->service->reset)
+		os->service->reset(os, os->service_data);
+
 	if (os->name) {
 		g_free(os->name);
 		os->name = NULL;
@@ -115,47 +217,51 @@ static void os_reset_session(struct obex_session *os)
 		g_free(os->buf);
 		os->buf = NULL;
 	}
+	if (os->path) {
+		g_free(os->path);
+		os->path = NULL;
+	}
+	if (os->apparam) {
+		g_free(os->apparam);
+		os->apparam = NULL;
+		os->apparam_len = 0;
+	}
+
+	if (os->get_rsp > 0) {
+		g_obex_remove_request_function(os->obex, os->get_rsp);
+		os->get_rsp = 0;
+	}
+
+	os->object = NULL;
+	os->driver = NULL;
 	os->aborted = FALSE;
+	os->pending = 0;
 	os->offset = 0;
 	os->size = OBJECT_SIZE_DELETE;
-	os->finished = 0;
-}
-
-static void os_session_mark_aborted(struct obex_session *os)
-{
-	/* the session was alredy cancelled/aborted */
-	if (os->aborted)
-		return;
-
-	os->aborted = os->size == OBJECT_SIZE_UNKNOWN ? FALSE :
-							os->size != os->offset;
+	os->headers_sent = FALSE;
+	os->checked = FALSE;
 }
 
 static void obex_session_free(struct obex_session *os)
 {
 	sessions = g_slist_remove(sessions, os);
 
-	os_reset_session(os);
-
-	if (os->current_folder)
-		g_free(os->current_folder);
-
 	if (os->io)
 		g_io_channel_unref(os->io);
 
-	if (os->target && !memcmp(os->target, PBAP_TARGET, TARGET_SIZE))
-		pbap_phonebook_context_destroy(os);
+	if (os->obex)
+		g_obex_unref(os->obex);
 
 	g_free(os);
 }
 
 /* From Imendio's GnomeVFS OBEX module (om-utils.c) */
-static time_t parse_iso8610(const gchar *val, int size)
+static time_t parse_iso8610(const char *val, int size)
 {
 	time_t time, tz_offset = 0;
 	struct tm tm;
-	gchar *date;
-	gchar tz;
+	char *date;
+	char tz;
 	int nr;
 
 	memset(&tm, 0, sizeof(tm));
@@ -196,568 +302,634 @@ static time_t parse_iso8610(const gchar *val, int size)
 	return time;
 }
 
-static void cmd_connect(struct obex_session *os,
-			obex_t *obex, obex_object_t *obj)
+static uint8_t *extract_nonce(const uint8_t *buffer, unsigned int hlen)
 {
-	obex_connect_hdr_t *nonhdr;
-	obex_headerdata_t hd;
-	uint8_t *buffer;
-	guint hlen, newsize;
-	guint16 mtu;
-	guint8 hi;
+	struct auth_header *hdr;
+	uint8_t *nonce = NULL;
+	uint32_t len = 0;
 
-	if (OBEX_ObjectGetNonHdrData(obj, &buffer) != sizeof(*nonhdr)) {
-		OBEX_ObjectSetRsp(obj, OBEX_RSP_FORBIDDEN, OBEX_RSP_FORBIDDEN);
-		debug("Invalid OBEX CONNECT packet");
-		return;
+	while (len < hlen) {
+		hdr = (void *) buffer + len;
+
+		switch (hdr->tag) {
+		case NONCE_TAG:
+			if (hdr->len != NONCE_LEN)
+				return NULL;
+
+			nonce = hdr->val;
+			break;
+		}
+
+		len += hdr->len + sizeof(struct auth_header);
 	}
 
-	nonhdr = (obex_connect_hdr_t *) buffer;
-	mtu = g_ntohs(nonhdr->mtu);
-	debug("Version: 0x%02x. Flags: 0x%02x  OBEX packet length: %d",
-			nonhdr->version, nonhdr->flags, mtu);
-	/* Leave space for headers */
-	newsize = mtu - 200;
+	return nonce;
+}
 
-	os->tx_mtu = newsize;
+static uint8_t *challenge_response(const uint8_t *nonce)
+{
+	GChecksum *md5;
+	uint8_t *result;
+	size_t size;
 
-	debug("Resizing stream chunks to %d", newsize);
+	result = g_new0(uint8_t, NONCE_LEN);
 
-	/* connection id will be used to track the sessions, even for OPP */
-	os->cid = ++cid;
+	md5 = g_checksum_new(G_CHECKSUM_MD5);
+	if (md5 == NULL)
+		return result;
 
-	while (OBEX_ObjectGetNextHeader(obex, obj, &hi, &hd, &hlen)) {
-		if (hi != OBEX_HDR_TARGET || hlen != TARGET_SIZE)
-			continue;
+	g_checksum_update(md5, nonce, NONCE_LEN);
+	g_checksum_update(md5, (uint8_t *) ":BlueZ", 6);
 
-		if (memcmp(hd.bs, FTP_TARGET, TARGET_SIZE) == 0 &&
-				os->server->services &
-						(OBEX_FTP | OBEX_PCSUITE)) {
-			os->target = FTP_TARGET;
-			os->cmds = &ftp;
-			break;
-		}
+	size = NONCE_LEN;
+	g_checksum_get_digest(md5, result, &size);
 
-		if (memcmp(hd.bs, PBAP_TARGET, TARGET_SIZE) == 0 &&
-				os->server->services & OBEX_PBAP) {
-			os->target = PBAP_TARGET;
-			os->cmds = &pbap;
-			pbap_phonebook_context_create(os);
-			break;
-		}
+	g_checksum_free(md5);
 
+	return result;
+}
+
+static void parse_service(struct obex_session *os, GObexPacket *req)
+{
+	GObexHeader *hdr;
+	const guint8 *target = NULL, *who = NULL;
+	gsize target_size = 0, who_size = 0;
+
+	hdr = g_obex_packet_get_header(req, G_OBEX_HDR_WHO);
+	if (hdr == NULL)
+		goto target;
+
+	g_obex_header_get_bytes(hdr, &who, &who_size);
+
+target:
+	hdr = g_obex_packet_get_header(req, G_OBEX_HDR_TARGET);
+	if (hdr == NULL)
+		goto probe;
+
+	g_obex_header_get_bytes(hdr, &target, &target_size);
+
+probe:
+	os->service = obex_service_driver_find(os->server->drivers,
+						target, target_size,
+						who, who_size);
+}
+
+static void parse_authchal(struct obex_session *session, GObexPacket *req,
+							GObexPacket *rsp)
+{
+	GObexHeader *hdr;
+	const guint8 *data, *nonce = NULL;
+	gsize len;
+	uint8_t challenge[18];
+	struct auth_header *auth = (struct auth_header *) challenge;
+	uint8_t *response;
+
+	hdr = g_obex_packet_get_header(req, G_OBEX_HDR_AUTHCHAL);
+	if (hdr == NULL)
+		return;
+
+	if (!g_obex_header_get_bytes(hdr, &data, &len))
+		return;
+
+	nonce = extract_nonce(data, len);
+	DBG("AUTH CHALLENGE REQUEST");
+
+	response = challenge_response(nonce);
+	auth->tag = DIGEST_TAG;
+	auth->len = NONCE_LEN;
+	memcpy(auth->val, response, NONCE_LEN);
+
+	hdr = g_obex_header_new_bytes(G_OBEX_HDR_AUTHRESP, challenge,
+							sizeof(challenge));
+	g_obex_packet_add_header(rsp, hdr);
+}
+
+static void cmd_connect(GObex *obex, GObexPacket *req, void *user_data)
+{
+	struct obex_session *os = user_data;
+	GObexPacket *rsp;
+	GObexHeader *hdr;
+	int err;
+
+	DBG("");
+
+	print_event(G_OBEX_OP_CONNECT, -1);
+
+	parse_service(os, req);
+
+	if (os->service == NULL || os->service->connect == NULL) {
 		error("Connect attempt to a non-supported target");
-		OBEX_ObjectSetRsp(obj, OBEX_RSP_FORBIDDEN, OBEX_RSP_FORBIDDEN);
+		os_set_response(os, -EPERM);
 		return;
 	}
 
-	if (os->target == NULL) {
-		if (os->server->services & OBEX_OPP) {
-			register_transfer(os->cid, os);
-			/* OPP doesn't contains target or connection id. */
-			OBEX_ObjectSetRsp(obj, OBEX_RSP_CONTINUE, OBEX_RSP_SUCCESS);
-		} else {
-			error("Object Push connect attempt to a non-OPP server");
-			OBEX_ObjectSetRsp(obj, OBEX_RSP_FORBIDDEN, OBEX_RSP_FORBIDDEN);
-		}
+	DBG("Selected driver: %s", os->service->name);
 
+	os->service_data = os->service->connect(os, &err);
+	if (err < 0) {
+		os_set_response(os, err);
 		return;
 	}
 
-	register_session(cid, os);
-	emit_session_created(cid);
+	os->cmd = G_OBEX_OP_CONNECT;
 
-	/* Append received UUID in WHO header */
-	hd.bs = os->target;
-	OBEX_ObjectAddHeader(obex, obj,
-			OBEX_HDR_WHO, hd, TARGET_SIZE,
-			OBEX_FL_FIT_ONE_PACKET);
-	hd.bq4 = cid;
-	OBEX_ObjectAddHeader(obex, obj,
-			OBEX_HDR_CONNECTION, hd, 4,
-			OBEX_FL_FIT_ONE_PACKET);
+	rsp = g_obex_packet_new(G_OBEX_RSP_SUCCESS, TRUE, G_OBEX_HDR_INVALID);
 
-	OBEX_ObjectSetRsp(obj, OBEX_RSP_CONTINUE, OBEX_RSP_SUCCESS);
+	parse_authchal(os, req, rsp);
+
+	if (os->service->target) {
+		hdr = g_obex_header_new_bytes(G_OBEX_HDR_WHO,
+						os->service->target,
+						os->service->target_size);
+		g_obex_packet_add_header(rsp, hdr);
+	}
+
+	g_obex_send(obex, rsp, NULL);
+
+	print_event(-1, 0);
 }
 
-static gboolean chk_cid(obex_t *obex, obex_object_t *obj, guint32 cid)
+static void cmd_disconnect(GObex *obex, GObexPacket *req, void *user_data)
 {
-	struct obex_session *os;
-	obex_headerdata_t hd;
-	guint hlen;
-	guint8 hi;
-	gboolean ret = FALSE;
+	struct obex_session *os = user_data;
 
-	os = OBEX_GetUserData(obex);
+	DBG("session %p", os);
 
-	/* Object Push doesn't provide a connection id. */
-	if (os->target == NULL)
-		return TRUE;
+	print_event(G_OBEX_OP_DISCONNECT, -1);
 
-	while (OBEX_ObjectGetNextHeader(obex, obj, &hi, &hd, &hlen)) {
-		if (hi == OBEX_HDR_CONNECTION && hlen == 4) {
-			ret = (hd.bq4 == cid ? TRUE : FALSE);
-			break;
-		}
-	}
+	os->cmd = G_OBEX_OP_DISCONNECT;
 
-	OBEX_ObjectReParseHeaders(obex, obj);
-
-	if (ret == FALSE)
-		OBEX_ObjectSetRsp(obj, OBEX_RSP_SERVICE_UNAVAILABLE,
-				OBEX_RSP_SERVICE_UNAVAILABLE);
-
-	return ret;
+	os_set_response(os, 0);
 }
 
-static void cmd_get(struct obex_session *os, obex_t *obex, obex_object_t *obj)
+static ssize_t driver_write(struct obex_session *os)
 {
-	obex_headerdata_t hd;
-	guint hlen;
-	guint8 hi;
+	ssize_t len = 0;
 
-	if (!os->cmds) {
-		OBEX_ObjectSetRsp(obj, OBEX_RSP_FORBIDDEN, OBEX_RSP_FORBIDDEN);
-		return;
-	} else if (!os->cmds->get) {
-		OBEX_ObjectSetRsp(obj, OBEX_RSP_NOT_IMPLEMENTED,
-				OBEX_RSP_NOT_IMPLEMENTED);
-		return;
-	}
+	while (os->pending > 0) {
+		ssize_t w;
 
-	g_return_if_fail(chk_cid(obex, obj, os->cid));
-
-	if (os->type) {
-		g_free(os->type);
-		os->type = NULL;
-	}
-
-	if (os->name) {
-		g_free(os->name);
-		os->name = NULL;
-	}
-
-	if (os->buf) {
-		g_free(os->buf);
-		os->buf = NULL;
-	}
-
-	while (OBEX_ObjectGetNextHeader(obex, obj, &hi, &hd, &hlen)) {
-		switch (hi) {
-		case OBEX_HDR_NAME:
-			if (os->name) {
-				debug("Ignoring multiple name headers");
-				break;
-			}
-
-			if (hlen == 0)
+		w = os->driver->write(os->object, os->buf + len, os->pending);
+		if (w < 0) {
+			error("write(): %s (%zd)", strerror(-w), -w);
+			if (w == -EINTR)
 				continue;
+			else if (w == -EINVAL)
+				memmove(os->buf, os->buf + len, os->pending);
 
-			os->name = g_convert((const gchar *) hd.bs, hlen,
-					"UTF8", "UTF16BE", NULL, NULL, NULL);
-			debug("OBEX_HDR_NAME: %s", os->name);
-			break;
-		case OBEX_HDR_TYPE:
-			if (os->type) {
-				debug("Ignoring multiple type headers");
-				break;
-			}
-
-			if (hlen == 0)
-				continue;
-
-			/* Ensure null termination */
-			if (hd.bs[hlen - 1] != '\0')
-				break;
-
-			if (!g_utf8_validate((const gchar *) hd.bs, -1, NULL)) {
-				debug("Invalid type header: %s", hd.bs);
-				break;
-			}
-
-			/* FIXME: x-obex/folder-listing - type is mandatory */
-
-			os->type = g_strndup((const gchar *) hd.bs, hlen);
-			debug("OBEX_HDR_TYPE: %s", os->type);
-			break;
-		}
-	}
-
-	os->cmds->get(obex, obj);
-}
-
-static void cmd_setpath(struct obex_session *os,
-			obex_t *obex, obex_object_t *obj)
-{
-	obex_headerdata_t hd;
-	guint32 hlen;
-	guint8 hi;
-
-	if (!os->cmds) {
-		OBEX_ObjectSetRsp(obj, OBEX_RSP_FORBIDDEN, OBEX_RSP_FORBIDDEN);
-		return;
-	} else if (!os->cmds->setpath) {
-		OBEX_ObjectSetRsp(obj, OBEX_RSP_NOT_IMPLEMENTED,
-				OBEX_RSP_NOT_IMPLEMENTED);
-		return;
-	}
-
-	g_return_if_fail(chk_cid(obex, obj, os->cid));
-
-	if (os->name) {
-		g_free(os->name);
-		os->name = NULL;
-	}
-
-	while (OBEX_ObjectGetNextHeader(obex, obj, &hi, &hd, &hlen)) {
-		if (hi != OBEX_HDR_NAME)
-			continue;
-
-		if (os->name) {
-			debug("Ignoring multiple name headers");
-			break;
+			return w;
 		}
 
-		/* This is because OBEX_UnicodeToChar() accesses the string
-		 * even if its size is zero */
-		if (hlen == 0) {
-			os->name = g_strdup("");
-			break;
-		}
-
-		os->name = g_convert((const gchar *) hd.bs, hlen,
-				"UTF8", "UTF16BE", NULL, NULL, NULL);
-
-		debug("Set path name: %s", os->name);
-		break;
+		len += w;
+		os->offset += w;
+		os->pending -= w;
 	}
 
-	os->cmds->setpath(obex, obj);
-}
+	DBG("%zd written", len);
 
-int os_prepare_get(struct obex_session *os, gchar *file, guint32 *size)
-{
-	gint fd, err;
-	struct stat stats;
-
-	fd = open(file, O_RDONLY);
-	if (fd < 0) {
-		err = -errno;
-		error("open(%s): %s (%d)", file, strerror(errno), errno);
-		goto fail;
-	}
-
-	if (fstat(fd, &stats) < 0) {
-		err = -errno;
-		error("fstat(fd=%d (%s)): %s (%d)", fd, file,
-						strerror(errno), errno);
-		goto fail;
-	}
-
-	os->fd = fd;
-	os->offset = 0;
-
-	if (stats.st_size > 0)
-		os->buf = g_malloc0(os->tx_mtu);
-
-	*size = stats.st_size;
-
-	return 0;
-
-fail:
-	if (fd >= 0)
-		close(fd);
-	return err;
-}
-
-static gint obex_write_stream(struct obex_session *os,
-			obex_t *obex, obex_object_t *obj)
-{
-	obex_headerdata_t hd;
-	gint32 len;
-	guint8 *ptr;
-
-	debug("obex_write_stream: name=%s type=%s tx_mtu=%d fd=%d",
-		os->name ? os->name : "", os->type ? os->type : "",
-		os->tx_mtu, os->fd);
-
-	if (os->aborted)
-		return -EPERM;
-
-	if (os->fd < 0) {
-		if (os->buf == NULL && os->finished == FALSE)
-			return -EIO;
-
-		len = MIN(os->size - os->offset, os->tx_mtu);
-		ptr = os->buf + os->offset;
-		goto add_header;
-	}
-
-	len = read(os->fd, os->buf, os->tx_mtu);
-	if (len < 0) {
-		gint err = errno;
-		error("read(): %s (%d)", strerror(err), err);
-		g_free(os->buf);
-		os->buf = NULL;
-		return -err;
-	}
-
-	ptr = os->buf;
-
-add_header:
-
-	hd.bs = ptr;
-
-	if (len == 0) {
-		OBEX_ObjectAddHeader(obex, obj, OBEX_HDR_BODY, hd, 0,
-					OBEX_FL_STREAM_DATAEND);
-		g_free(os->buf);
-		os->buf = NULL;
-		return len;
-	}
-
-	os->offset += len;
-
-	OBEX_ObjectAddHeader(obex, obj, OBEX_HDR_BODY, hd, len,
-				OBEX_FL_STREAM_DATA);
-
-	if (!memcmp(os->target, PBAP_TARGET, TARGET_SIZE))
-		if (os->offset == os->size && os->finished == FALSE)
-			OBEX_SuspendRequest(obex, obj);
+	if (os->service->progress != NULL)
+		os->service->progress(os, os->service_data);
 
 	return len;
 }
 
-gint os_prepare_put(struct obex_session *os)
+static gssize driver_read(struct obex_session *os, void *buf, gsize size)
 {
-	gchar *path;
-	gint len;
+	gssize len;
 
-	path = g_build_filename(os->current_folder, os->name, NULL);
+	if (os->object == NULL)
+		return -EIO;
 
-	os->fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0600);
-	if (os->fd < 0) {
-		error("open(%s): %s (%d)", path, strerror(errno), errno);
-		g_free(path);
-		return -EPERM;
+	if (os->service->progress != NULL)
+		os->service->progress(os, os->service_data);
+
+	len = os->driver->read(os->object, buf, size);
+	if (len < 0) {
+		error("read(): %s (%zd)", strerror(-len), -len);
+		if (len == -ENOSTR)
+			return 0;
+		if (len == -EAGAIN)
+			os->driver->set_io_watch(os->object, handle_async_io,
+									os);
 	}
 
-	g_free(path);
+	os->offset += len;
 
-	if (os->target == NULL)
-		emit_transfer_started(os->cid);
+	DBG("%zd read", len);
 
-	if (!os->buf) {
-		debug("PUT request checked, no buffered data");
+	return len;
+}
+
+static gssize send_data(void *buf, gsize size, gpointer user_data)
+{
+	struct obex_session *os = user_data;
+
+	DBG("name=%s type=%s file=%p size=%zu", os->name, os->type, os->object,
+									size);
+
+	if (os->aborted)
+		return os->err < 0 ? os->err : -EPERM;
+
+	return driver_read(os, buf, size);
+}
+
+static void transfer_complete(GObex *obex, GError *err, gpointer user_data)
+{
+	struct obex_session *os = user_data;
+
+	DBG("");
+
+	if (err != NULL) {
+		error("transfer failed: %s\n", err->message);
+		goto reset;
+	}
+
+	if (os->object && os->driver && os->driver->flush) {
+		if (os->driver->flush(os->object) == -EAGAIN) {
+			g_obex_suspend(os->obex);
+			os->driver->set_io_watch(os->object, handle_async_io,
+									os);
+			return;
+		}
+	}
+
+reset:
+	os_reset_session(os);
+}
+
+static int driver_get_headers(struct obex_session *os)
+{
+	GObexPacket *rsp;
+	gssize len;
+	guint8 data[255];
+	guint8 id;
+	GObexHeader *hdr;
+
+	DBG("name=%s type=%s object=%p", os->name, os->type, os->object);
+
+	if (os->aborted)
+		return os->err < 0 ? os->err : -EPERM;
+
+	if (os->object == NULL)
+		return -EIO;
+
+	if (os->headers_sent)
 		return 0;
-	}
 
-	len = 0;
-	while (len < os->offset) {
-		gint w;
+	rsp = g_obex_packet_new(G_OBEX_RSP_CONTINUE, TRUE, G_OBEX_HDR_INVALID);
 
-		w = write(os->fd, os->buf + len, os->offset - len);
-		if (w < 0) {
-			gint err = errno;
-			error("write(%s): %s (%d)", path, strerror(errno),
-									errno);
-			if (err == EINTR)
-				continue;
-			else
-				return -err;
+	if (os->driver->get_next_header == NULL)
+		goto done;
+
+	while ((len = os->driver->get_next_header(os->object, &data,
+							sizeof(data), &id))) {
+		if (len < 0) {
+			error("get_next_header(): %s (%zd)", strerror(-len),
+								-len);
+
+			g_obex_packet_free(rsp);
+
+			if (len == -EAGAIN)
+				return len;
+
+			g_free(os->buf);
+			os->buf = NULL;
+
+			return len;
 		}
 
-		len += w;
+		hdr = g_obex_header_new_bytes(id, data, len);
+		g_obex_packet_add_header(rsp, hdr);
 	}
+
+done:
+	if (os->size != OBJECT_SIZE_UNKNOWN && os->size < UINT32_MAX) {
+		hdr = g_obex_header_new_uint32(G_OBEX_HDR_LENGTH, os->size);
+		g_obex_packet_add_header(rsp, hdr);
+	}
+
+	g_obex_get_rsp_pkt(os->obex, rsp, send_data, transfer_complete, os,
+									NULL);
+
+	os->headers_sent = TRUE;
+
+	print_event(-1, G_OBEX_RSP_CONTINUE);
 
 	return 0;
 }
 
-static gint obex_read_stream(struct obex_session *os, obex_t *obex,
-				obex_object_t *obj)
+static gboolean handle_async_io(void *object, int flags, int err,
+						void *user_data)
 {
-	gint size;
-	gint32 len = 0;
-	const guint8 *buffer;
+	struct obex_session *os = user_data;
+
+	if (err < 0)
+		goto done;
+
+	if (flags & G_IO_OUT)
+		err = driver_write(os);
+	if ((flags & G_IO_IN) && !os->headers_sent)
+		err = driver_get_headers(os);
+
+	if (err == -EAGAIN)
+		return TRUE;
+
+done:
+	if (err < 0) {
+		os->err = err;
+		os->aborted = TRUE;
+	}
+
+	g_obex_resume(os->obex);
+
+	return FALSE;
+}
+
+static gboolean recv_data(const void *buf, gsize size, gpointer user_data)
+{
+	struct obex_session *os = user_data;
+	ssize_t ret;
+
+	DBG("name=%s type=%s file=%p size=%zu", os->name, os->type, os->object,
+									size);
 
 	if (os->aborted)
-		return -EPERM;
+		return FALSE;
 
 	/* workaround: client didn't send the object lenght */
 	if (os->size == OBJECT_SIZE_DELETE)
 		os->size = OBJECT_SIZE_UNKNOWN;
 
-	size = OBEX_ObjectReadStream(obex, obj, &buffer);
-	if (size < 0) {
-		error("Error on OBEX stream");
-		return -EIO;
+	os->buf = g_realloc(os->buf, os->pending + size);
+	memcpy(os->buf + os->pending, buf, size);
+	os->pending += size;
+
+	/* only write if both object and driver are valid */
+	if (os->object == NULL || os->driver == NULL) {
+		DBG("Stored %" PRIu64 " bytes into temporary buffer",
+								os->pending);
+		return TRUE;
 	}
 
-	if (size > os->rx_mtu) {
-		error("Received more data than RX_MAX");
-		return -EIO;
+	ret = driver_write(os);
+	if (ret >= 0)
+		return TRUE;
+
+	if (ret == -EAGAIN) {
+		g_obex_suspend(os->obex);
+		os->driver->set_io_watch(os->object, handle_async_io, os);
+		return TRUE;
 	}
 
-	if (os->fd < 0 && size > 0) {
-		if (os->buf) {
-			error("Got more data but there is still a pending buffer");
-			return -EIO;
-		}
-
-		os->buf = g_malloc0(os->rx_mtu);
-		memcpy(os->buf, buffer, size);
-		os->offset = size;
-
-		debug("Stored %u bytes into temporary buffer", size);
-
-		return 0;
-	}
-
-	while (len < size) {
-		gint w;
-
-		w = write(os->fd, buffer + len, size - len);
-		if (w < 0) {
-			gint err = errno;
-			if (err == EINTR)
-				continue;
-			else
-				return -err;
-		}
-
-		len += w;
-	}
-
-	os->offset += len;
-
-	return 0;
+	return FALSE;
 }
 
-static gboolean check_put(obex_t *obex, obex_object_t *obj)
+static void parse_type(struct obex_session *os, GObexPacket *req)
 {
-	struct obex_session *os;
-	struct statvfs buf;
-	obex_headerdata_t hd;
-	guint hlen;
-	guint8 hi;
-	long long unsigned int free;
-	int ret;
+	GObexHeader *hdr;
+	const guint8 *type;
+	gsize len;
 
-	os = OBEX_GetUserData(obex);
+	g_free(os->type);
+	os->type = NULL;
+
+	hdr = g_obex_packet_get_header(req, G_OBEX_HDR_TYPE);
+	if (hdr == NULL)
+		goto probe;
+
+	if (!g_obex_header_get_bytes(hdr, &type, &len))
+		goto probe;
+
+	/* Ensure null termination */
+	if (type[len - 1] != '\0')
+		goto probe;
+
+	os->type = g_strndup((const char *) type, len);
+	DBG("TYPE: %s", os->type);
+
+probe:
+	os->driver = obex_mime_type_driver_find(os->service->target,
+						os->service->target_size,
+						os->type,
+						os->service->who,
+						os->service->who_size);
+}
+
+static void parse_name(struct obex_session *os, GObexPacket *req)
+{
+	GObexHeader *hdr;
+	const char *name;
+
+	g_free(os->name);
+	os->name = NULL;
+
+	hdr = g_obex_packet_get_header(req, G_OBEX_HDR_NAME);
+	if (hdr == NULL)
+		return;
+
+	if (!g_obex_header_get_unicode(hdr, &name))
+		return;
+
+	os->name = g_strdup(name);
+	DBG("NAME: %s", os->name);
+}
+
+static void parse_apparam(struct obex_session *os, GObexPacket *req)
+{
+	GObexHeader *hdr;
+	const guint8 *apparam;
+	gsize len;
+
+	hdr = g_obex_packet_get_header(req, G_OBEX_HDR_APPARAM);
+	if (hdr == NULL)
+		return;
+
+	if (!g_obex_header_get_bytes(hdr, &apparam, &len))
+		return;
+
+	os->apparam = g_memdup(apparam, len);
+	os->apparam_len = len;
+	DBG("APPARAM");
+}
+
+static void cmd_get(GObex *obex, GObexPacket *req, gpointer user_data)
+{
+	struct obex_session *os = user_data;
+	int err;
+
+	DBG("session %p", os);
+
+	print_event(G_OBEX_OP_GET, -1);
+
+	if (os->service == NULL) {
+		os_set_response(os, -EPERM);
+		return;
+	}
+
+	if (os->service->get == NULL) {
+		os_set_response(os, -ENOSYS);
+		return;
+	}
+
+	os->headers_sent = FALSE;
 
 	if (os->type) {
 		g_free(os->type);
 		os->type = NULL;
 	}
 
-	if (os->name) {
-		g_free(os->name);
-		os->name = NULL;
+	parse_type(os, req);
+
+	if (!os->driver) {
+		error("No driver found");
+		os_set_response(os, -ENOSYS);
+		return;
 	}
 
-	while (OBEX_ObjectGetNextHeader(obex, obj, &hi, &hd, &hlen)) {
-		switch (hi) {
-		case OBEX_HDR_NAME:
-			if (os->name) {
-				debug("Ignoring multiple name headers");
-				break;
-			}
+	os->cmd = G_OBEX_OP_GET;
 
-			if (hlen == 0)
-				continue;
+	parse_name(os, req);
 
-			os->name = g_convert((const gchar *) hd.bs, hlen,
-					"UTF8", "UTF16BE", NULL, NULL, NULL);
-			debug("OBEX_HDR_NAME: %s", os->name);
-			break;
+	parse_apparam(os, req);
 
-		case OBEX_HDR_TYPE:
-			if (os->type) {
-				debug("Ignoring multiple type headers");
-				break;
-			}
+	err = os->service->get(os, os->service_data);
+	if (err == 0)
+		return;
 
-			if (hlen == 0)
-				continue;
+	os_set_response(os, err);
+}
 
-			/* Ensure null termination */
-			if (hd.bs[hlen - 1] != '\0')
-				break;
+static void cmd_setpath(GObex *obex, GObexPacket *req, gpointer user_data)
+{
+	struct obex_session *os = user_data;
+	int err;
 
-			if (!g_utf8_validate((const gchar *) hd.bs, -1, NULL)) {
-				debug("Invalid type header: %s", hd.bs);
-				break;
-			}
+	DBG("");
 
-			os->type = g_strndup((const gchar *) hd.bs, hlen);
-			debug("OBEX_HDR_TYPE: %s", os->type);
-			break;
+	print_event(G_OBEX_OP_SETPATH, -1);
 
-		case OBEX_HDR_BODY:
-			if (os->size < 0)
-				os->size = OBJECT_SIZE_UNKNOWN;
-			break;
-
-		case OBEX_HDR_LENGTH:
-			os->size = hd.bq4;
-			debug("OBEX_HDR_LENGTH: %d", os->size);
-			break;
-		case OBEX_HDR_TIME:
-			os->time = parse_iso8610((const gchar *) hd.bs, hlen);
-			break;
-		}
+	if (os->service == NULL) {
+		err = -EPERM;
+		goto done;
 	}
 
-	OBEX_ObjectReParseHeaders(obex, obj);
-
-	if (!os->name) {
-		OBEX_ObjectSetRsp(obj, OBEX_RSP_BAD_REQUEST,
-				OBEX_RSP_BAD_REQUEST);
-		g_free(os->type);
-		os->type = NULL;
-		return FALSE;
+	if (os->service->setpath == NULL) {
+		err = -ENOSYS;
+		goto done;
 	}
 
-	if (!os->cmds || !os->cmds->chkput)
+	os->cmd = G_OBEX_OP_SETPATH;
+
+	parse_name(os, req);
+
+	os->nonhdr = g_obex_packet_get_data(req, &os->nonhdr_len);
+
+	err = os->service->setpath(os, os->service_data);
+done:
+	os_set_response(os, err);
+}
+
+int obex_get_stream_start(struct obex_session *os, const char *filename)
+{
+	int err;
+	void *object;
+	size_t size = OBJECT_SIZE_UNKNOWN;
+
+	object = os->driver->open(filename, O_RDONLY, 0, os->service_data,
+								&size, &err);
+	if (object == NULL) {
+		error("open(%s): %s (%d)", filename, strerror(-err), -err);
+		return err;
+	}
+
+	os->object = object;
+	os->offset = 0;
+	os->size = size;
+
+	err = driver_get_headers(os);
+	if (err != -EAGAIN)
+		return err;
+
+	g_obex_suspend(os->obex);
+	os->driver->set_io_watch(os->object, handle_async_io, os);
+	return 0;
+}
+
+int obex_put_stream_start(struct obex_session *os, const char *filename)
+{
+	int err;
+
+	os->object = os->driver->open(filename, O_WRONLY | O_CREAT | O_TRUNC,
+					0600, os->service_data,
+					os->size != OBJECT_SIZE_UNKNOWN ?
+					(size_t *) &os->size : NULL, &err);
+	if (os->object == NULL) {
+		error("open(%s): %s (%d)", filename, strerror(-err), -err);
+		return err;
+	}
+
+	os->path = g_strdup(filename);
+
+	return 0;
+}
+
+static void parse_length(struct obex_session *os, GObexPacket *req)
+{
+	GObexHeader *hdr;
+	guint32 size;
+
+	hdr = g_obex_packet_get_header(req, G_OBEX_HDR_LENGTH);
+	if (hdr == NULL)
+		return;
+
+	if (!g_obex_header_get_uint32(hdr, &size))
+		return;
+
+	os->size = size;
+	DBG("LENGTH: %" PRIu64, os->size);
+}
+
+static void parse_time(struct obex_session *os, GObexPacket *req)
+{
+	GObexHeader *hdr;
+	const guint8 *time;
+	gsize len;
+
+	hdr = g_obex_packet_get_header(req, G_OBEX_HDR_TIME);
+	if (hdr == NULL)
+		return;
+
+
+	if (!g_obex_header_get_bytes(hdr, &time, &len))
+		return;
+
+	os->time = parse_iso8610((const char *) time, len);
+	DBG("TIME: %s", ctime(&os->time));
+}
+
+static gboolean check_put(GObex *obex, GObexPacket *req, void *user_data)
+{
+	struct obex_session *os = user_data;
+	int ret;
+
+	if (os->service->chkput == NULL)
 		goto done;
 
-	ret = os->cmds->chkput(obex, obj);
+	ret = os->service->chkput(os, os->service_data);
 	switch (ret) {
 	case 0:
 		break;
-	case -EINVAL:
-		OBEX_ObjectSetRsp(obj, OBEX_RSP_BAD_REQUEST,
-				OBEX_RSP_BAD_REQUEST);
-		return FALSE;
-	case -EPERM:
-		OBEX_ObjectSetRsp(obj, OBEX_RSP_FORBIDDEN, OBEX_RSP_FORBIDDEN);
-		return FALSE;
+	case -EAGAIN:
+		g_obex_suspend(os->obex);
+		os->driver->set_io_watch(os->object, handle_async_io, os);
+		return TRUE;
 	default:
-		debug("Unhandled chkput error: %d", ret);
-		OBEX_ObjectSetRsp(obj, OBEX_RSP_INTERNAL_SERVER_ERROR,
-				OBEX_RSP_INTERNAL_SERVER_ERROR);
+		os_set_response(os, ret);
 		return FALSE;
 	}
 
-	if (os->size == OBJECT_SIZE_DELETE || os->size == OBJECT_SIZE_UNKNOWN) {
-		debug("Got a PUT without a Length");
-		goto done;
-	}
-
-	if (fstatvfs(os->fd, &buf) < 0) {
-		int err = errno;
-		error("fstatvfs(): %s(%d)", strerror(err), err);
-		OBEX_ObjectSetRsp(obj, OBEX_RSP_FORBIDDEN, OBEX_RSP_FORBIDDEN);
-		return FALSE;
-	}
-
-	free = (unsigned long long) buf.f_bsize * buf.f_bavail;
-	debug("Free space in disk: %llu", free);
-	if ((guint64) os->size > free) {
-		debug("Free disk space not available");
-		OBEX_ObjectSetRsp(obj, OBEX_RSP_FORBIDDEN, OBEX_RSP_FORBIDDEN);
-		return FALSE;
-	}
+	if (os->size == OBJECT_SIZE_DELETE || os->size == OBJECT_SIZE_UNKNOWN)
+		DBG("Got a PUT without a Length");
 
 done:
 	os->checked = TRUE;
@@ -765,268 +937,201 @@ done:
 	return TRUE;
 }
 
-static void cmd_put(struct obex_session *os, obex_t *obex, obex_object_t *obj)
+static void cmd_put(GObex *obex, GObexPacket *req, gpointer user_data)
 {
-	if (!os->cmds) {
-		OBEX_ObjectSetRsp(obj, OBEX_RSP_FORBIDDEN, OBEX_RSP_FORBIDDEN);
-		return;
-	} else if (!os->cmds->put) {
-		OBEX_ObjectSetRsp(obj, OBEX_RSP_NOT_IMPLEMENTED,
-				OBEX_RSP_NOT_IMPLEMENTED);
+	struct obex_session *os = user_data;
+	int err;
+
+	DBG("");
+
+	print_event(G_OBEX_OP_PUT, -1);
+
+	if (os->service == NULL) {
+		os_set_response(os, -EPERM);
 		return;
 	}
 
-	g_return_if_fail(chk_cid(obex, obj, os->cid));
+	parse_type(os, req);
+
+	if (os->driver == NULL) {
+		error("No driver found");
+		os_set_response(os, -ENOSYS);
+		return;
+	}
+
+	os->cmd = G_OBEX_OP_PUT;
+
+	parse_name(os, req);
+	parse_length(os, req);
+	parse_time(os, req);
+	parse_apparam(os, req);
 
 	if (!os->checked) {
-		if (!check_put(obex, obj))
+		if (!check_put(obex, req, user_data))
 			return;
 	}
 
-	os->cmds->put(obex, obj);
-}
-
-static void obex_event(obex_t *obex, obex_object_t *obj, gint mode,
-					gint evt, gint cmd, gint rsp)
-{
-	struct obex_session *os;
-
-	obex_debug(evt, cmd, rsp);
-
-	os = OBEX_GetUserData(obex);
-
-	switch (evt) {
-	case OBEX_EV_PROGRESS:
-		/* Just emit progress for Object Push */
-		if (os->target == NULL)
-			emit_transfer_progress(os->cid, os->size, os->offset);
-		break;
-	case OBEX_EV_ABORT:
-		os->aborted = TRUE;
-		if (os->target == NULL)
-			emit_transfer_completed(os->cid, FALSE);
-		os_reset_session(os);
-		OBEX_ObjectSetRsp(obj, OBEX_RSP_SUCCESS, OBEX_RSP_SUCCESS);
-		break;
-	case OBEX_EV_REQDONE:
-		switch (cmd) {
-		case OBEX_CMD_DISCONNECT:
-			OBEX_TransportDisconnect(obex);
-			break;
-		case OBEX_CMD_PUT:
-		case OBEX_CMD_GET:
-			os_session_mark_aborted(os);
-			if (os->target == NULL)
-				emit_transfer_completed(os->cid, !os->aborted);
-			os_reset_session(os);
-			break;
-		default:
-			break;
-		}
-		break;
-	case OBEX_EV_REQHINT:
-		os->cmd = cmd;
-		switch (cmd) {
-		case OBEX_CMD_PUT:
-			os->checked = FALSE;
-			OBEX_ObjectReadStream(obex, obj, NULL);
-		case OBEX_CMD_GET:
-		case OBEX_CMD_SETPATH:
-		case OBEX_CMD_CONNECT:
-		case OBEX_CMD_DISCONNECT:
-			OBEX_ObjectSetRsp(obj, OBEX_RSP_CONTINUE,
-					OBEX_RSP_SUCCESS);
-			break;
-		default:
-			OBEX_ObjectSetRsp(obj, OBEX_RSP_NOT_IMPLEMENTED,
-					OBEX_RSP_NOT_IMPLEMENTED);
-			break;
-		}
-		break;
-	case OBEX_EV_REQCHECK:
-		switch (cmd) {
-		case OBEX_CMD_PUT:
-			if (os->cmds && os->cmds->put)
-				check_put(obex, obj);
-			break;
-		default:
-			break;
-		}
-		break;
-	case OBEX_EV_REQ:
-		switch (cmd) {
-		case OBEX_CMD_DISCONNECT:
-			break;
-		case OBEX_CMD_CONNECT:
-			cmd_connect(os, obex, obj);
-			break;
-		case OBEX_CMD_SETPATH:
-			cmd_setpath(os, obex, obj);
-			break;
-		case OBEX_CMD_GET:
-			cmd_get(os, obex, obj);
-			break;
-		case OBEX_CMD_PUT:
-			cmd_put(os, obex, obj);
-			break;
-		default:
-			debug("Unknown request: 0x%X", cmd);
-			OBEX_ObjectSetRsp(obj,
-				OBEX_RSP_NOT_IMPLEMENTED, OBEX_RSP_NOT_IMPLEMENTED);
-			break;
-		}
-		break;
-	case OBEX_EV_STREAMAVAIL:
-		switch (obex_read_stream(os, obex, obj)) {
-		case 0:
-			break;
-		case -EPERM:
-			OBEX_ObjectSetRsp(obj,
-				OBEX_RSP_FORBIDDEN, OBEX_RSP_FORBIDDEN);
-			break;
-		default:
-			OBEX_ObjectSetRsp(obj,
-				OBEX_RSP_INTERNAL_SERVER_ERROR,
-				OBEX_RSP_INTERNAL_SERVER_ERROR);
-			break;
-		}
-
-		break;
-	case OBEX_EV_STREAMEMPTY:
-		obex_write_stream(os, obex, obj);
-		break;
-	case OBEX_EV_LINKERR:
-		break;
-	case OBEX_EV_PARSEERR:
-		break;
-	case OBEX_EV_UNEXPECTED:
-		break;
-
-	default:
-		debug("Unknown evt %d", evt);
-		break;
+	if (os->service->put == NULL) {
+		os_set_response(os, -ENOSYS);
+		return;
 	}
-}
 
-void server_free(struct server *server)
-{
-	g_free(server->name);
-	g_free(server->folder);
-	g_free(server->capability);
-	g_free(server->devnode);
-	g_free(server);
-}
-
-static void obex_handle_destroy(gpointer user_data)
-{
-	struct obex_session *os;
-	obex_t *obex = user_data;
-
-	os = OBEX_GetUserData(obex);
-
-	if (os->target == NULL) {
-		/* Got an error during a transfer. */
-		if (os->fd >= 0)
-			emit_transfer_completed(os->cid, os->offset == os->size);
-
-		unregister_transfer(os->cid);
-	} else {
-		emit_session_removed(os->cid);
-		unregister_session(os->cid);
+	err = os->service->put(os, os->service_data);
+	if (err == 0) {
+		g_obex_put_rsp(obex, req, recv_data, transfer_complete, os,
+						NULL, G_OBEX_HDR_INVALID);
+		print_event(G_OBEX_OP_PUT, G_OBEX_RSP_CONTINUE);
+		return;
 	}
+
+	os_set_response(os, err);
+}
+
+static void parse_destname(struct obex_session *os, GObexPacket *req)
+{
+	GObexHeader *hdr;
+	const char *destname;
+
+	g_free(os->destname);
+	os->destname = NULL;
+
+	hdr = g_obex_packet_get_header(req, G_OBEX_HDR_DESTNAME);
+	if (hdr == NULL)
+		return;
+
+	if (!g_obex_header_get_unicode(hdr, &destname))
+		return;
+
+	os->destname = g_strdup(destname);
+	DBG("DESTNAME: %s", os->destname);
+}
+
+static void parse_action(struct obex_session *os, GObexPacket *req)
+{
+	GObexHeader *hdr;
+	guint8 id;
+
+	hdr = g_obex_packet_get_header(req, G_OBEX_HDR_ACTION);
+	if (hdr == NULL)
+		return;
+
+	if (!g_obex_header_get_uint8(hdr, &id))
+		return;
+
+	os->action_id = id;
+	DBG("ACTION: 0x%02x", os->action_id);
+}
+
+static void cmd_action(GObex *obex, GObexPacket *req, gpointer user_data)
+{
+	struct obex_session *os = user_data;
+	int err;
+
+	DBG("");
+
+	print_event(G_OBEX_OP_ACTION, -1);
+
+	if (os->service == NULL) {
+		err = -EPERM;
+		goto done;
+	}
+
+	if (os->service->action == NULL) {
+		err = -ENOSYS;
+		goto done;
+	}
+
+	os->cmd = G_OBEX_OP_ACTION;
+
+	parse_name(os, req);
+	parse_destname(os, req);
+	parse_action(os, req);
+
+	os->driver = obex_mime_type_driver_find(os->service->target,
+						os->service->target_size,
+						NULL,
+						os->service->who,
+						os->service->who_size);
+	if (os->driver == NULL) {
+		err = -ENOSYS;
+		goto done;
+	}
+
+	err = os->service->action(os, os->service_data);
+done:
+	os_set_response(os, err);
+}
+
+static void cmd_abort(GObex *obex, GObexPacket *req, gpointer user_data)
+{
+	struct obex_session *os = user_data;
+
+	DBG("");
+
+	print_event(G_OBEX_OP_ABORT, -1);
+
+	os_reset_session(os);
+
+	os_set_response(os, 0);
+}
+
+static void obex_session_destroy(struct obex_session *os)
+{
+	DBG("");
+
+	os_reset_session(os);
+
+	if (os->service && os->service->disconnect)
+		os->service->disconnect(os, os->service_data);
 
 	obex_session_free(os);
-
-	OBEX_Cleanup(obex);
 }
 
-static gboolean tty_reinit(gpointer data)
+static void disconn_func(GObex *obex, GError *err, gpointer user_data)
 {
-	struct server *server = data;
+	struct obex_session *os = user_data;
 
-	tty_init(server->services, server->folder, server->capability,
-					server->symlinks, server->devnode);
-
-	server_free(server);
-
-	return FALSE;
+	error("disconnected: %s\n", err ? err->message : "<no err>");
+	obex_session_destroy(os);
 }
 
-static gboolean obex_handle_input(GIOChannel *io,
-				GIOCondition cond, gpointer user_data)
-{
-	obex_t *obex = user_data;
-	struct obex_session *os = OBEX_GetUserData(obex);
-
-	if (cond & (G_IO_HUP | G_IO_ERR | G_IO_NVAL)) {
-		error("obex_handle_input: poll event %s%s%s",
-				(cond & G_IO_HUP) ? "HUP " : "",
-				(cond & G_IO_ERR) ? "ERR " : "",
-				(cond & G_IO_NVAL) ? "NVAL " : "");
-		goto failed;
-	}
-
-	if (OBEX_HandleInput(obex, 1) < 0) {
-		error("Handle input error");
-		goto failed;
-	}
-
-	return TRUE;
-
-failed:
-	if (os->server->devnode) {
-		if (cond & G_IO_NVAL)
-			tty_closed();
-		else
-			g_idle_add(tty_reinit, os->server);
-	}
-
-	return FALSE;
-}
-
-gint obex_session_start(GIOChannel *io, struct server *server)
+int obex_session_start(GIOChannel *io, uint16_t tx_mtu, uint16_t rx_mtu,
+				gboolean stream, struct obex_server *server)
 {
 	struct obex_session *os;
-	obex_t *obex;
-	gint ret, fd;
+	GObex *obex;
+	GObexTransportType type;
+	static uint32_t id = 0;
+
+	DBG("");
 
 	os = g_new0(struct obex_session, 1);
+	os->id = ++id;
 
-	os->target = NULL;
-
-	if (server->services & OBEX_OPP)
-		os->cmds = &opp;
-
-	os->current_folder = g_strdup(server->folder);
+	os->service = obex_service_driver_find(server->drivers, NULL,
+							0, NULL, 0);
 	os->server = server;
-	os->rx_mtu = server->rx_mtu ? server->rx_mtu : DEFAULT_RX_MTU;
-	os->tx_mtu = server->tx_mtu ? server->tx_mtu : DEFAULT_TX_MTU;
-	os->fd = -1;
 	os->size = OBJECT_SIZE_DELETE;
 
-	obex = OBEX_Init(OBEX_TRANS_FD, obex_event, 0);
+	type = stream ? G_OBEX_TRANSPORT_STREAM : G_OBEX_TRANSPORT_PACKET;
+
+	obex = g_obex_new(io, type, rx_mtu, tx_mtu);
 	if (!obex) {
 		obex_session_free(os);
 		return -EIO;
 	}
 
-	OBEX_SetUserData(obex, os);
+	g_obex_set_disconnect_function(obex, disconn_func, os);
+	g_obex_add_request_function(obex, G_OBEX_OP_CONNECT, cmd_connect, os);
+	g_obex_add_request_function(obex, G_OBEX_OP_DISCONNECT, cmd_disconnect,
+									os);
+	g_obex_add_request_function(obex, G_OBEX_OP_PUT, cmd_put, os);
+	g_obex_add_request_function(obex, G_OBEX_OP_GET, cmd_get, os);
+	g_obex_add_request_function(obex, G_OBEX_OP_SETPATH, cmd_setpath, os);
+	g_obex_add_request_function(obex, G_OBEX_OP_ACTION, cmd_action, os);
+	g_obex_add_request_function(obex, G_OBEX_OP_ABORT, cmd_abort, os);
+
 	os->obex = obex;
-
-	OBEX_SetTransportMTU(obex, os->rx_mtu, os->tx_mtu);
-
-	fd = g_io_channel_unix_get_fd(io);
-
-	ret = FdOBEX_TransportSetup(obex, fd, fd, 0);
-	if (ret < 0) {
-		obex_session_free(os);
-		OBEX_Cleanup(obex);
-		return ret;
-	}
-
-	g_io_add_watch_full(io, G_PRIORITY_DEFAULT,
-			G_IO_IN | G_IO_HUP | G_IO_ERR | G_IO_NVAL,
-			obex_handle_input, obex, obex_handle_destroy);
 	os->io = g_io_channel_ref(io);
 
 	sessions = g_slist_prepend(sessions, os);
@@ -1034,16 +1139,103 @@ gint obex_session_start(GIOChannel *io, struct server *server)
 	return 0;
 }
 
-gint obex_tty_session_stop(void)
+const char *obex_get_name(struct obex_session *os)
 {
-	GSList *l;
+	return os->name;
+}
 
-	for (l = sessions; l != NULL; l = l->next) {
-		struct obex_session *os = l->data;
+const char *obex_get_destname(struct obex_session *os)
+{
+	return os->destname;
+}
 
-		if (os->server->devnode && os->io)
-			g_io_channel_shutdown(os->io, TRUE, NULL);
-	}
+void obex_set_name(struct obex_session *os, const char *name)
+{
+	g_free(os->name);
+	os->name = g_strdup(name);
+	DBG("Name changed: %s", os->name);
+}
 
-	return 0;
+ssize_t obex_get_size(struct obex_session *os)
+{
+	return os->size;
+}
+
+const char *obex_get_type(struct obex_session *os)
+{
+	return os->type;
+}
+
+int obex_remove(struct obex_session *os, const char *path)
+{
+	if (os->driver == NULL)
+		return -ENOSYS;
+
+	return os->driver->remove(path);
+}
+
+int obex_copy(struct obex_session *os, const char *source,
+						const char *destination)
+{
+	if (os->driver == NULL || os->driver->copy == NULL)
+		return -ENOSYS;
+
+	DBG("%s %s", source, destination);
+
+	return os->driver->copy(source, destination);
+}
+
+int obex_move(struct obex_session *os, const char *source,
+						const char *destination)
+{
+	if (os->driver == NULL || os->driver->move == NULL)
+		return -ENOSYS;
+
+	DBG("%s %s", source, destination);
+
+	return os->driver->move(source, destination);
+}
+
+uint8_t obex_get_action_id(struct obex_session *os)
+{
+	return os->action_id;
+}
+
+ssize_t obex_get_apparam(struct obex_session *os, const uint8_t **buffer)
+{
+	*buffer = os->apparam;
+
+	return os->apparam_len;
+}
+
+ssize_t obex_get_non_header_data(struct obex_session *os,
+							const uint8_t **data)
+{
+	*data = os->nonhdr;
+
+	return os->nonhdr_len;
+}
+
+int obex_getpeername(struct obex_session *os, char **name)
+{
+	struct obex_transport_driver *transport = os->server->transport;
+
+	if (transport == NULL || transport->getpeername == NULL)
+		return -ENOTSUP;
+
+	return transport->getpeername(os->io, name);
+}
+
+int memncmp0(const void *a, size_t na, const void *b, size_t nb)
+{
+	if (na != nb)
+		return na - nb;
+
+	if (a == NULL)
+		return -(a != b);
+
+	if (b == NULL)
+		return a != b;
+
+	return memcmp(a, b, na);
 }

@@ -43,11 +43,11 @@
    */
 #undef LT_OBJDIR
 
-/* Define to 1 if you need the dbus_watch_get_unix_fd() function. */
-#undef NEED_DBUS_WATCH_GET_UNIX_FD
-
 /* Define if threading support is required */
 #undef NEED_THREADS
+
+/* Define to 1 if your C compiler doesn't accept -c and -o together. */
+#undef NO_MINUS_C_MINUS_O
 
 /* Name of package */
 #undef PACKAGE
@@ -63,6 +63,9 @@
 
 /* Define to the one symbol short name of this package. */
 #undef PACKAGE_TARNAME
+
+/* Define to the home page for this package. */
+#undef PACKAGE_URL
 
 /* Define to the version of this package. */
 #undef PACKAGE_VERSION

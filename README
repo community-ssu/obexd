@@ -1,7 +1,7 @@
 OBEX Server and Client
 **********************
 
-Copyright (C) 2007-2009  Marcel Holtmann <marcel@holtmann.org>
+Copyright (C) 2007-2010  Marcel Holtmann <marcel@holtmann.org>
 
 
 Compilation and installation
@@ -11,7 +11,6 @@ In order to compile OBEX daemons you need following software packages:
 	- GCC compiler
 	- D-Bus library
 	- GLib library
-	- OpenOBEX library
 	- Bluetooth library
 
 To configure run:

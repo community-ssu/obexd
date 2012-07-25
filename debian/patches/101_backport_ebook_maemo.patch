@@ -1,0 +1,220 @@
+diff -cr plugins/phonebook-ebook.c plugins/phonebook-ebook.c
+*** plugins/phonebook-ebook.c	Sun Jul 22 12:47:07 2012
+--- plugins/phonebook-ebook.c	Sun Jul 22 12:50:00 2012
+***************
+*** 179,186 ****
+  	char *vcard;
+  
+  	if (!filter)
+! 		return vcard_fixes(e_vcard_to_string(evcard, EVC_FORMAT_VCARD_30), FALSE);
+! 		/* XXX There is no support for VCARD 2.1 at this time */
+  
+  	/*
+  	 * Mandatory attributes for vCard 2.1 are VERSION ,N and TEL.
+--- 179,185 ----
+  	char *vcard;
+  
+  	if (!filter)
+! 		return vcard_fixes(e_vcard_to_string(evcard, format), FALSE);
+  
+  	/*
+  	 * Mandatory attributes for vCard 2.1 are VERSION ,N and TEL.
+***************
+*** 217,223 ****
+  	return vcard;
+  }
+  
+! static void ebookpull_cb(EBook *book, const GError *gerr, GList *contacts,
+  							void *user_data)
+  {
+  	struct query_context *data = user_data;
+--- 216,222 ----
+  	return vcard;
+  }
+  
+! static void ebookpull_cb(EBook *book, EBookStatus estatus, GList *contacts,
+  							void *user_data)
+  {
+  	struct query_context *data = user_data;
+***************
+*** 229,236 ****
+  	if (data->canceled)
+  		goto canceled;
+  
+! 	if (gerr != NULL) {
+! 		error("E-Book query failed: %s", gerr->message);
+  		goto done;
+  	}
+  
+--- 228,235 ----
+  	if (data->canceled)
+  		goto canceled;
+  
+! 	if (estatus != E_BOOK_ERROR_OK) {
+! 		error("E-Book query failed: status %d", estatus);
+  		goto done;
+  	}
+  
+***************
+*** 286,292 ****
+  		EVCard *evcard = E_VCARD(contact);
+  		char *vcard;
+  
+! 		vcard = evcard_to_string(evcard, EVC_FORMAT_VCARD_30,
+  						data->params->filter);
+  
+  		data->buf = g_string_append(data->buf, vcard);
+--- 285,291 ----
+  		EVCard *evcard = E_VCARD(contact);
+  		char *vcard;
+  
+! 		vcard = evcard_to_string(evcard, data->params->format,
+  						data->params->filter);
+  
+  		data->buf = g_string_append(data->buf, vcard);
+***************
+*** 319,325 ****
+  		free_query_context(data);
+  }
+  
+! static void ebook_entry_cb(EBook *book, const GError *gerr,
+  				EContact *contact, void *user_data)
+  {
+  	struct query_context *data = user_data;
+--- 318,324 ----
+  		free_query_context(data);
+  }
+  
+! static void ebook_entry_cb(EBook *book, EBookStatus estatus,
+  				EContact *contact, void *user_data)
+  {
+  	struct query_context *data = user_data;
+***************
+*** 332,339 ****
+  	if (data->canceled)
+  		goto done;
+  
+! 	if (gerr != NULL) {
+! 		error("E-Book query failed: %s", gerr->message);
+  		goto done;
+  	}
+  
+--- 331,338 ----
+  	if (data->canceled)
+  		goto done;
+  
+! 	if (estatus != E_BOOK_ERROR_OK) {
+! 		error("E-Book query failed: status %d", estatus);
+  		goto done;
+  	}
+  
+***************
+*** 341,347 ****
+  
+  	evcard = E_VCARD(contact);
+  
+! 	vcard = evcard_to_string(evcard, EVC_FORMAT_VCARD_30,
+  					data->params->filter);
+  
+  	len = vcard ? strlen(vcard) : 0;
+--- 340,346 ----
+  
+  	evcard = E_VCARD(contact);
+  
+! 	vcard = evcard_to_string(evcard, data->params->format,
+  					data->params->filter);
+  
+  	len = vcard ? strlen(vcard) : 0;
+***************
+*** 394,400 ****
+  	return g_string_free(name, FALSE);
+  }
+  
+! static void cache_cb(EBook *book, const GError *gerr, GList *contacts,
+  							void *user_data)
+  {
+  	struct query_context *data = user_data;
+--- 393,399 ----
+  	return g_string_free(name, FALSE);
+  }
+  
+! static void cache_cb(EBook *book, EBookStatus estatus, GList *contacts,
+  							void *user_data)
+  {
+  	struct query_context *data = user_data;
+***************
+*** 405,412 ****
+  	if (data->canceled)
+  		goto canceled;
+  
+! 	if (gerr != NULL) {
+! 		error("E-Book operation failed: %s", gerr->message);
+  		goto done;
+  	}
+  
+--- 404,411 ----
+  	if (data->canceled)
+  		goto canceled;
+  
+! 	if (estatus != E_BOOK_ERROR_OK) {
+! 		error("E-Book operation failed: status %d", estatus);
+  		goto done;
+  	}
+  
+***************
+*** 674,681 ****
+  		if (e_book_is_opened(ebook) == FALSE)
+  			continue;
+  
+! 		if (e_book_get_contacts_async(ebook, data->query,
+! 						ebookpull_cb, data) == TRUE)
+  			data->queued_calls++;
+  	}
+  
+--- 673,680 ----
+  		if (e_book_is_opened(ebook) == FALSE)
+  			continue;
+  
+! 		if (e_book_async_get_contacts(ebook, data->query,
+! 						ebookpull_cb, data) == FALSE)
+  			data->queued_calls++;
+  	}
+  
+***************
+*** 735,742 ****
+  			if (e_book_is_opened(ebook) == FALSE)
+  				continue;
+  
+! 			if (e_book_get_contact_async(ebook, data->id,
+! 						ebook_entry_cb, data) == TRUE)
+  				data->queued_calls++;
+  		}
+  
+--- 734,741 ----
+  			if (e_book_is_opened(ebook) == FALSE)
+  				continue;
+  
+! 			if (e_book_async_get_contact(ebook, data->id,
+! 						ebook_entry_cb, data) == FALSE)
+  				data->queued_calls++;
+  		}
+  
+***************
+*** 821,828 ****
+  		if (e_book_is_opened(ebook) == FALSE)
+  			continue;
+  
+! 		if (e_book_get_contacts_async(ebook, query,
+! 						cache_cb, data) == TRUE)
+  			data->queued_calls++;
+  	}
+  
+--- 820,827 ----
+  		if (e_book_is_opened(ebook) == FALSE)
+  			continue;
+  
+! 		if (e_book_async_get_contacts(ebook, query,
+! 						cache_cb, data) == FALSE)
+  			data->queued_calls++;
+  	}
+  

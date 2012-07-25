@@ -10,17 +10,27 @@ AC_DEFUN([AC_PROG_CC_PIE], [
 	])
 ])
 
+AC_DEFUN([AC_PATH_READLINE], [
+	AC_CHECK_HEADER(readline/readline.h,
+		[AC_CHECK_LIB(readline, main,
+			[ readline_found=yes
+			AC_SUBST(READLINE_LIBS, "-lreadline")
+			], readline_found=no)],
+		[])
+])
+
 AC_DEFUN([COMPILER_FLAGS], [
 	if (test "${CFLAGS}" = ""); then
 		CFLAGS="-Wall -O2 -D_FORTIFY_SOURCE=2"
 	fi
 	if (test "$USE_MAINTAINER_MODE" = "yes"); then
-		CFLAGS+=" -Werror -Wextra"
-		CFLAGS+=" -Wno-unused-parameter"
-		CFLAGS+=" -Wno-missing-field-initializers"
-		CFLAGS+=" -Wdeclaration-after-statement"
-		CFLAGS+=" -Wmissing-declarations"
-		CFLAGS+=" -Wredundant-decls"
-		CFLAGS+=" -Wcast-align"
+		CFLAGS="$CFLAGS -Werror -Wextra"
+		CFLAGS="$CFLAGS -Wno-unused-parameter"
+		CFLAGS="$CFLAGS -Wno-missing-field-initializers"
+		CFLAGS="$CFLAGS -Wdeclaration-after-statement"
+		CFLAGS="$CFLAGS -Wmissing-declarations"
+		CFLAGS="$CFLAGS -Wredundant-decls"
+		CFLAGS="$CFLAGS -Wcast-align"
+		CFLAGS="$CFLAGS -DG_DISABLE_DEPRECATED"
 	fi
 ])

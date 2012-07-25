@@ -2,8 +2,8 @@
  *
  *  OBEX Client
  *
- *  Copyright (C) 2007-2009  Intel Corporation
- *  Copyright (C) 2007-2009  Marcel Holtmann <marcel@holtmann.org>
+ *  Copyright (C) 2007-2010  Intel Corporation
+ *  Copyright (C) 2007-2010  Marcel Holtmann <marcel@holtmann.org>
  *
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -26,24 +26,38 @@
 #include <config.h>
 #endif
 
+#include <errno.h>
+#include <string.h>
+
 #include <glib.h>
 #include <gdbus.h>
 
+#include "log.h"
+
+#include "transfer.h"
 #include "session.h"
+#include "driver.h"
 #include "sync.h"
+
+#define OBEX_SYNC_UUID "IRMC-SYNC"
+#define OBEX_SYNC_UUID_LEN 9
 
 #define SYNC_INTERFACE	"org.openobex.Synchronization"
 #define ERROR_INF SYNC_INTERFACE ".Error"
+#define SYNC_UUID "00001104-0000-1000-8000-00805f9b34fb"
 
 struct sync_data {
+	struct obc_session *session;
 	char *phonebook_path;
+	DBusMessage *msg;
 };
+
+static DBusConnection *conn = NULL;
 
 static DBusMessage *sync_setlocation(DBusConnection *connection,
 			DBusMessage *message, void *user_data)
 {
-	struct session_data *session = user_data;
-	struct sync_data *syncdata = session_get_data(session);
+	struct sync_data *sync = user_data;
 	const char *location;
 	char *path = NULL, *tmp;
 
@@ -64,65 +78,94 @@ static DBusMessage *sync_setlocation(DBusConnection *connection,
 		return g_dbus_create_error(message,
 			ERROR_INF ".InvalidArguments", "InvalidPhonebook");
 
-	g_free(syncdata->phonebook_path);
-	syncdata->phonebook_path = path;
+	g_free(sync->phonebook_path);
+	sync->phonebook_path = path;
 
 	return dbus_message_new_method_return(message);
 }
 
-static void sync_getphonebook_callback(struct session_data *session,
-						void *user_data)
+static void sync_getphonebook_callback(struct obc_session *session,
+					struct obc_transfer *transfer,
+					GError *err, void *user_data)
 {
+	struct sync_data *sync = user_data;
 	DBusMessage *reply;
-	char *buf = NULL;
+	char *contents;
+	size_t size;
+	int perr;
 
-	reply = dbus_message_new_method_return(session->msg);
+	if (err) {
+		reply = g_dbus_create_error(sync->msg,
+						"org.openobex.Error.Failed",
+						"%s", err->message);
+		goto send;
+	}
 
-	if (session->filled > 0)
-		buf = session->buffer;
+	perr = obc_transfer_get_contents(transfer, &contents, &size);
+	if (perr < 0) {
+		reply = g_dbus_create_error(sync->msg,
+						"org.openobex.Error.Failed",
+						"Error reading contents: %s",
+						strerror(-perr));
+		goto send;
+	}
 
-	dbus_message_append_args(reply,
-		DBUS_TYPE_STRING, &buf,
-		DBUS_TYPE_INVALID);
+	reply = dbus_message_new_method_return(sync->msg);
 
-	session->filled = 0;
-	g_dbus_send_message(session->conn, reply);
-	dbus_message_unref(session->msg);
-	session->msg = NULL;
+	dbus_message_append_args(reply, DBUS_TYPE_STRING, &contents,
+							DBUS_TYPE_INVALID);
+
+	g_free(contents);
+
+send:
+	g_dbus_send_message(conn, reply);
+	dbus_message_unref(sync->msg);
+	sync->msg = NULL;
 }
 
 static DBusMessage *sync_getphonebook(DBusConnection *connection,
 			DBusMessage *message, void *user_data)
 {
-	struct session_data *session = user_data;
-	struct sync_data *syncdata = session_get_data(session);
+	struct sync_data *sync = user_data;
+	struct obc_transfer *transfer;
+	GError *err = NULL;
+	DBusMessage *reply;
 
-	if (session->msg)
+	if (sync->msg)
 		return g_dbus_create_error(message,
 			ERROR_INF ".InProgress", "Transfer in progress");
 
 	/* set default phonebook_path to memory internal phonebook */
-	if (!syncdata->phonebook_path)
-		syncdata->phonebook_path = g_strdup("telecom/pb.vcf");
+	if (!sync->phonebook_path)
+		sync->phonebook_path = g_strdup("telecom/pb.vcf");
 
-	if (session_get(session, "phonebook", syncdata->phonebook_path, NULL,
-				NULL, 0, sync_getphonebook_callback) < 0)
-		return g_dbus_create_error(message,
-			ERROR_INF ".Failed", "Failed");
+	transfer = obc_transfer_get("phonebook", sync->phonebook_path, NULL,
+									&err);
+	if (transfer == NULL)
+		goto fail;
 
-	session->msg = dbus_message_ref(message);
-	session->filled = 0;
+	if (obc_session_queue(sync->session, transfer,
+						sync_getphonebook_callback,
+						sync, &err)) {
+		sync->msg = dbus_message_ref(message);
+		return NULL;
+	}
 
-	return NULL;
+fail:
+	reply = g_dbus_create_error(message, ERROR_INF ".Failed", "%s",
+								err->message);
+	g_error_free(err);
+	return reply;
 }
 
 static DBusMessage *sync_putphonebook(DBusConnection *connection,
 			DBusMessage *message, void *user_data)
 {
-	struct session_data *session = user_data;
-	struct sync_data *syncdata = session_get_data(session);
+	struct sync_data *sync = user_data;
+	struct obc_transfer *transfer;
 	const char *buf;
-	char *buffer;
+	GError *err = NULL;
+	DBusMessage *reply;
 
 	if (dbus_message_get_args(message, NULL,
 			DBUS_TYPE_STRING, &buf,
@@ -131,16 +174,22 @@ static DBusMessage *sync_putphonebook(DBusConnection *connection,
 			ERROR_INF ".InvalidArguments", NULL);
 
 	/* set default phonebook_path to memory internal phonebook */
-	if (!syncdata->phonebook_path)
-		syncdata->phonebook_path = g_strdup("telecom/pb.vcf");
+	if (!sync->phonebook_path)
+		sync->phonebook_path = g_strdup("telecom/pb.vcf");
 
-	buffer = g_strdup(buf);
+	transfer = obc_transfer_put(NULL, sync->phonebook_path, NULL, buf,
+							strlen(buf), &err);
+	if (transfer == NULL)
+		goto fail;
 
-	if (session_put(session, buffer, syncdata->phonebook_path) < 0)
-		return g_dbus_create_error(message,
-				ERROR_INF ".Failed", "Failed");
+	if (obc_session_queue(sync->session, transfer, NULL, NULL, &err))
+		return dbus_message_new_method_return(message);
 
-	return dbus_message_new_method_return(message);
+fail:
+	reply = g_dbus_create_error(message, ERROR_INF ".Failed", "%s",
+								err->message);
+	g_error_free(err);
+	return reply;
 }
 
 static GDBusMethodTable sync_methods[] = {
@@ -152,32 +201,83 @@ static GDBusMethodTable sync_methods[] = {
 	{}
 };
 
-gboolean sync_register_interface(DBusConnection *connection, const char *path,
-				void *user_data, GDBusDestroyFunction destroy)
+static void sync_free(void *data)
 {
-	struct session_data *session = user_data;
-	void *priv;
+	struct sync_data *sync = data;
 
-	priv = g_try_malloc0(sizeof(struct sync_data));
-	if (!priv)
-		return FALSE;
-
-	session_set_data(session, priv);
-
-	return g_dbus_register_interface(connection, path, SYNC_INTERFACE,
-				sync_methods, NULL, NULL, user_data, destroy);
+	obc_session_unref(sync->session);
+	g_free(sync->phonebook_path);
+	g_free(sync);
 }
 
-void sync_unregister_interface(DBusConnection *connection, const char *path,
-							void *user_data)
+static int sync_probe(struct obc_session *session)
 {
-	struct session_data *session = user_data;
-	struct sync_data *syncdata = session_get_data(session);
+	struct sync_data *sync;
+	const char *path;
 
-	g_dbus_unregister_interface(connection, path, SYNC_INTERFACE);
+	path = obc_session_get_path(session);
 
-	if (syncdata) {
-		g_free(syncdata->phonebook_path);
-		g_free(syncdata);
+	DBG("%s", path);
+
+	sync = g_try_new0(struct sync_data, 1);
+	if (!sync)
+		return -ENOMEM;
+
+	sync->session = obc_session_ref(session);
+
+	if (!g_dbus_register_interface(conn, path, SYNC_INTERFACE, sync_methods,
+						NULL, NULL, sync, sync_free)) {
+		sync_free(sync);
+		return -ENOMEM;
 	}
+
+	return 0;
+}
+
+static void sync_remove(struct obc_session *session)
+{
+	const char *path = obc_session_get_path(session);
+
+	DBG("%s", path);
+
+	g_dbus_unregister_interface(conn, path, SYNC_INTERFACE);
+}
+
+static struct obc_driver sync = {
+	.service = "SYNC",
+	.uuid = SYNC_UUID,
+	.target = OBEX_SYNC_UUID,
+	.target_len = OBEX_SYNC_UUID_LEN,
+	.probe = sync_probe,
+	.remove = sync_remove
+};
+
+int sync_init(void)
+{
+	int err;
+
+	DBG("");
+
+	conn = dbus_bus_get(DBUS_BUS_SESSION, NULL);
+	if (!conn)
+		return -EIO;
+
+	err = obc_driver_register(&sync);
+	if (err < 0) {
+		dbus_connection_unref(conn);
+		conn = NULL;
+		return err;
+	}
+
+	return 0;
+}
+
+void sync_exit(void)
+{
+	DBG("");
+
+	dbus_connection_unref(conn);
+	conn = NULL;
+
+	obc_driver_unregister(&sync);
 }

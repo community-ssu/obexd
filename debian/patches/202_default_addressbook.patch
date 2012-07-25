@@ -1,0 +1,112 @@
+diff -cr plugins/phonebook-ebook.c plugins/phonebook-ebook.c
+*** plugins/phonebook-ebook.c	Sun Jul 22 10:19:53 2012
+--- plugins/phonebook-ebook.c	Sun Jul 22 10:27:21 2012
+***************
+*** 456,461 ****
+--- 456,478 ----
+  		free_query_context(data);
+  }
+  
++ gboolean add_ebook_from_uri(GSList **ebooks, EBook *ebook) {
++ 	GError *gerr = NULL;
++ 
++ 	if (e_book_open(ebook, FALSE, &gerr) == FALSE) {
++ 		error("Can't open e-book address book: %s", gerr->message);
++ 		g_object_unref(ebook);
++ 		g_clear_error(&gerr);
++ 		return FALSE;
++ 	}
++ 
++ 	DBG("address book with uri %s opened", e_book_get_uri(ebook));
++ 
++ 	*ebooks = g_slist_append(*ebooks, ebook);
++ 
++ 	return TRUE;
++ }
++ 
+  static GSList *traverse_sources(GSList *ebooks, GSList *sources,
+  							char **default_src) {
+  	GError *gerr = NULL;
+***************
+*** 479,498 ****
+  		}
+  		g_free(uri);
+  
+! 		if (e_book_open(ebook, FALSE, &gerr) == FALSE) {
+! 			error("Can't open e-book address book: %s",
+! 							gerr->message);
+! 			g_object_unref(ebook);
+! 			g_clear_error(&gerr);
+! 			continue;
+! 		}
+! 
+! 		if (*default_src == NULL)
+! 			*default_src = e_source_get_uri(source);
+! 
+! 		DBG("%s address book opened", e_source_peek_name(source));
+  
+- 		ebooks = g_slist_append(ebooks, ebook);
+  	}
+  
+  	return ebooks;
+--- 496,505 ----
+  		}
+  		g_free(uri);
+  
+! 		if (add_ebook_from_uri(&ebooks, ebook) == TRUE)
+! 			if (*default_src == NULL)
+! 				*default_src = e_source_get_uri(source);
+  
+  	}
+  
+  	return ebooks;
+***************
+*** 515,532 ****
+  
+  	if (e_book_get_addressbooks(&src_list, &gerr) == FALSE) {
+  		error("Can't list user's address books: %s", gerr->message);
+! 		g_error_free(gerr);
+  		return NULL;
+  	}
+  
+  	list = e_source_list_peek_groups(src_list);
+! 	while (list != NULL) {
+! 		ESourceGroup *group = E_SOURCE_GROUP(list->data);
+! 		GSList *sources = e_source_group_peek_sources(group);
+  
+! 		ebooks = traverse_sources(ebooks, sources, &default_src);
+  
+! 		list = list->next;
+  	}
+  
+  	g_free(default_src);
+--- 522,550 ----
+  
+  	if (e_book_get_addressbooks(&src_list, &gerr) == FALSE) {
+  		error("Can't list user's address books: %s", gerr->message);
+! 		g_clear_error(&gerr);
+  		return NULL;
+  	}
+  
+  	list = e_source_list_peek_groups(src_list);
+! 	if (list == NULL) {
+! 		EBook *ebook = e_book_new_system_addressbook(&gerr);
+! 		if (ebook) {
+! 			add_ebook_from_uri(&ebooks, ebook);
+! 		} else {
+! 			error("Can't get default address book: %s", gerr->message);
+! 			g_clear_error(&gerr);
+! 		}
+  
+! 	} else {
+! 		while (list != NULL) {
+! 			ESourceGroup *group = E_SOURCE_GROUP(list->data);
+! 			GSList *sources = e_source_group_peek_sources(group);
+  
+! 			ebooks = traverse_sources(ebooks, sources, &default_src);
+! 
+! 			list = list->next;
+! 		}
+  	}
+  
+  	g_free(default_src);

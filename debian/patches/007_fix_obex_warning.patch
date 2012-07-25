@@ -1,0 +1,29 @@
+diff -cr src/obex.c src/obex.c
+*** src/obex.c	Thu May 17 11:12:17 2012
+--- src/obex.c	Mon Jul 16 19:09:04 2012
+***************
+*** 858,868 ****
+  int obex_put_stream_start(struct obex_session *os, const char *filename)
+  {
+  	int err;
+  
+  	os->object = os->driver->open(filename, O_WRONLY | O_CREAT | O_TRUNC,
+  					0600, os->service_data,
+! 					os->size != OBJECT_SIZE_UNKNOWN ?
+! 					(size_t *) &os->size : NULL, &err);
+  	if (os->object == NULL) {
+  		error("open(%s): %s (%d)", filename, strerror(-err), -err);
+  		return err;
+--- 858,869 ----
+  int obex_put_stream_start(struct obex_session *os, const char *filename)
+  {
+  	int err;
++ 	int64_t *size = &os->size;
+  
+  	os->object = os->driver->open(filename, O_WRONLY | O_CREAT | O_TRUNC,
+  					0600, os->service_data,
+! 					*size != OBJECT_SIZE_UNKNOWN ?
+! 					(size_t *) size : NULL, &err);
+  	if (os->object == NULL) {
+  		error("open(%s): %s (%d)", filename, strerror(-err), -err);
+  		return err;

@@ -1,6 +1,4 @@
 debian/tmp/usr/lib/obex/obexd
-debian/tmp/usr/share/doc/*
 debian/tmp/usr/share/dbus-1/services/obexd.service
 debian/tmp/usr/bin/obex-root-setup
 debian/tmp/etc/obex/root-setup.d/*
-

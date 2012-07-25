@@ -1,0 +1,67 @@
+diff -cr Makefile.in Makefile.in
+*** Makefile.in	Thu May 17 11:12:37 2012
+--- Makefile.in	Mon Jul 16 19:57:23 2012
+***************
+*** 310,315 ****
+--- 310,316 ----
+  DUMPBIN = @DUMPBIN@
+  EBOOK_CFLAGS = @EBOOK_CFLAGS@
+  EBOOK_LIBS = @EBOOK_LIBS@
++ ECHO = @ECHO@
+  ECHO_C = @ECHO_C@
+  ECHO_N = @ECHO_N@
+  ECHO_T = @ECHO_T@
+diff -cr acinclude.m4 acinclude.m4
+*** acinclude.m4	Thu May 17 11:12:17 2012
+--- acinclude.m4	Mon Jul 16 19:57:23 2012
+***************
+*** 21,27 ****
+  
+  AC_DEFUN([COMPILER_FLAGS], [
+  	if (test "${CFLAGS}" = ""); then
+! 		CFLAGS="-Wall -O2 -D_FORTIFY_SOURCE=2"
+  	fi
+  	if (test "$USE_MAINTAINER_MODE" = "yes"); then
+  		CFLAGS="$CFLAGS -Werror -Wextra"
+--- 21,27 ----
+  
+  AC_DEFUN([COMPILER_FLAGS], [
+  	if (test "${CFLAGS}" = ""); then
+! 		CFLAGS="-Wall -O2 -D_FORTIFY_SOURCE=2 -D_FILE_OFFSET_BITS=64"
+  	fi
+  	if (test "$USE_MAINTAINER_MODE" = "yes"); then
+  		CFLAGS="$CFLAGS -Werror -Wextra"
+diff -cr config.h.in config.h.in
+*** config.h.in	Mon Jul 16 19:52:57 2012
+--- config.h.in	Mon Jul 16 19:57:23 2012
+***************
+*** 40,47 ****
+  #undef HAVE_UNISTD_H
+  
+  /* Define to the sub-directory in which libtool stores uninstalled libraries.
+-    */
+  #undef LT_OBJDIR
+  
+  /* Define to 1 if you need the dbus_connection_can_send_type() funnction. */
+  #undef NEED_DBUS_CONNECTION_CAN_SEND_TYPE
+--- 40,47 ----
+  #undef HAVE_UNISTD_H
+  
+  /* Define to the sub-directory in which libtool stores uninstalled libraries.
+  #undef LT_OBJDIR
++    */
+  
+  /* Define to 1 if you need the dbus_connection_can_send_type() funnction. */
+  #undef NEED_DBUS_CONNECTION_CAN_SEND_TYPE
+***************
+*** 79,84 ****
+--- 79,87 ----
+  /* Define to the home page for this package. */
+  #undef PACKAGE_URL
+  
++ /* Define to the home page for this package. */
++ #undef PACKAGE_URL
++ 
+  /* Define to the version of this package. */
+  #undef PACKAGE_VERSION
+  

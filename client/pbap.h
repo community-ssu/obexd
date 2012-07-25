@@ -2,8 +2,8 @@
  *
  *  OBEX Client
  *
- *  Copyright (C) 2007-2008  Intel Corporation
- *  Copyright (C) 2007-2009  Marcel Holtmann <marcel@holtmann.org>
+ *  Copyright (C) 2007-2010  Intel Corporation
+ *  Copyright (C) 2007-2010  Marcel Holtmann <marcel@holtmann.org>
  *
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -22,18 +22,5 @@
  *
  */
 
-#include <gdbus.h>
-
-#define PBAP_INTERFACE  "org.openobex.PhonebookAccess"
-
-struct pbap_data {
-	char *path;
-	guint8 format;
-	guint8 order;
-	uint64_t filter;
-};
-
-gboolean pbap_register_interface(DBusConnection *connection, const char *path,
-				void *user_data, GDBusDestroyFunction destroy);
-void pbap_unregister_interface(DBusConnection *connection, const char *path,
-				void *user_data);
+int pbap_init(void);
+void pbap_exit(void);

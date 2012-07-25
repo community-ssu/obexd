@@ -9,15 +9,21 @@ doc_files = doc/obexd-api.txt doc/agent-api.txt doc/client-api.txt
 
 test_files = test/simple-agent test/send-files \
 		test/pull-business-card test/exchange-business-cards \
-		test/list-folders test/pbap-client test/ftp-client
+		test/list-folders test/pbap-client test/ftp-client \
+		test/map-client
 
-gdbus_sources = gdbus/gdbus.h gdbus/mainloop.c gdbus/object.c gdbus/watch.c
+gdbus_sources = gdbus/gdbus.h gdbus/mainloop.c gdbus/watch.c \
+					gdbus/object.c gdbus/polkit.c
 
-gwobex_sources = gwobex/gw-obex.h gwobex/gw-obex.c \
-			gwobex/obex-priv.h gwobex/obex-priv.c \
-			gwobex/obex-xfer.h gwobex/obex-xfer.c \
-			gwobex/utils.h gwobex/utils.c gwobex/log.h
+btio_sources = btio/btio.h btio/btio.c
 
+gobex_sources = gobex/gobex.h gobex/gobex.c \
+			gobex/gobex-defs.h gobex/gobex-defs.c \
+			gobex/gobex-packet.c gobex/gobex-packet.h \
+			gobex/gobex-header.c gobex/gobex-header.h \
+			gobex/gobex-transfer.c gobex/gobex-debug.h
+
+noinst_PROGRAMS =
 libexec_PROGRAMS =
 
 if SERVER
@@ -25,41 +31,80 @@ confdir = $(sysconfdir)/obex
 
 service_in_files += src/obexd.service.in
 
+builtin_modules =
+builtin_sources =
+builtin_nodist =
+
+builtin_modules += bluetooth
+builtin_sources += plugins/bluetooth.c
+
+if USB
+builtin_modules += usb
+builtin_sources += plugins/usb.c
+endif
+
+builtin_modules += filesystem
+builtin_sources += plugins/filesystem.c plugins/filesystem.h
+
+if NOKIA_PCSUITE
+builtin_modules += pcsuite
+builtin_sources += plugins/pcsuite.c
+endif
+
+builtin_modules += opp
+builtin_sources += plugins/opp.c
+
+builtin_modules += ftp
+builtin_sources += plugins/ftp.c plugins/ftp.h
+
+builtin_modules += pbap
+builtin_sources += plugins/pbap.c plugins/phonebook.h \
+			plugins/vcard.h plugins/vcard.c
+
+builtin_modules += mas
+builtin_sources += plugins/mas.c plugins/messages.h \
+			src/map_ap.c src/map_ap.h
+
+builtin_modules += irmc
+builtin_sources += plugins/irmc.c
+
+builtin_modules += syncevolution
+builtin_sources += plugins/syncevolution.c
+
+builtin_nodist += plugins/phonebook.c
+builtin_nodist += plugins/messages.c
+
 libexec_PROGRAMS += src/obexd
 
-src_obexd_SOURCES = $(gdbus_sources) \
-			src/main.c src/obexd.h src/plugin.h src/plugin.c \
-			src/logging.h src/logging.c src/btio.h src/btio.c \
-			src/dbus.h src/manager.c src/obex.h src/obex.c \
-			src/opp.c src/ftp.c src/pbap.c \
-			src/bluetooth.h src/bluetooth.c \
-			src/phonebook.h src/phonebook.c
+src_obexd_SOURCES = $(gdbus_sources) $(builtin_sources) $(btio_sources) \
+			$(gobex_sources) src/main.c src/obexd.h \
+			src/plugin.h src/plugin.c \
+			src/log.h src/log.c src/manager.h src/manager.c \
+			src/obex.h src/obex.c src/obex-priv.h \
+			src/mimetype.h src/mimetype.c \
+			src/service.h src/service.c \
+			src/transport.h src/transport.c \
+			src/server.h src/server.c
 
 src_obexd_LDADD = @DBUS_LIBS@ @GLIB_LIBS@ @GTHREAD_LIBS@ \
-					@OPENOBEX_LIBS@ @BLUEZ_LIBS@ -ldl
+					@EBOOK_LIBS@ @BLUEZ_LIBS@ \
+					@LIBICAL_LIBS@ @TRACKER_LIBS@ -ldl
 
 src_obexd_LDFLAGS = -Wl,--export-dynamic
+
+builtin_files = src/builtin.h $(builtin_nodist)
+
+nodist_src_obexd_SOURCES = $(builtin_files)
 
 plugindir = $(libdir)/obex/plugins
 
 plugin_LTLIBRARIES =
 
-if EBOOK
-plugin_LTLIBRARIES += plugins/ebook.la
+src/plugin.$(OBJEXT): src/builtin.h
 
-plugins_ebook_la_SOURCES = plugins/ebook.c
+src/builtin.h: src/genbuiltin $(builtin_sources)
+	$(AM_V_GEN)$(srcdir)/src/genbuiltin $(builtin_modules) > $@
 
-plugins_ebook_la_LIBADD = @EBOOK_LIBS@
-
-plugins_ebook_la_CFLAGS = -fvisibility=hidden @EBOOK_CFLAGS@
-plugins_ebook_la_LDFLAGS = -no-undefined -module -avoid-version
-endif
-
-noinst_PROGRAMS = test/obex-test
-
-test_obex_test_SOURCES = $(gwobex_sources) test/main.c
-
-test_obex_test_LDADD = @OPENOBEX_LIBS@ @BLUEZ_LIBS@ @GLIB_LIBS@
 endif
 
 if CLIENT
@@ -67,32 +112,90 @@ service_in_files += client/obex-client.service.in
 
 libexec_PROGRAMS += client/obex-client
 
-client_obex_client_SOURCES = $(gdbus_sources) $(gwobex_sources) client/main.c \
+client_obex_client_SOURCES = $(gdbus_sources) $(gobex_sources) \
+				$(btio_sources) \
+				client/main.c src/log.h src/log.c \
+				client/manager.h client/manager.c \
 				client/session.h client/session.c \
+				client/bluetooth.h client/bluetooth.c \
+				client/sync.h client/sync.c \
 				client/pbap.h client/pbap.c \
-				client/sync.h client/sync.c
+				client/ftp.h client/ftp.c \
+				client/opp.h client/opp.c \
+				client/map.h client/map.c \
+				client/transfer.h client/transfer.c \
+				client/agent.h client/agent.c \
+				client/transport.h client/transport.c \
+				client/driver.h client/driver.c \
+				src/map_ap.h src/map_ap.c
 
-client_obex_client_LDADD = @GLIB_LIBS@ @DBUS_LIBS@ @OPENOBEX_LIBS@ @BLUEZ_LIBS@
+client_obex_client_LDADD = @GLIB_LIBS@ @DBUS_LIBS@ @BLUEZ_LIBS@
 endif
 
 service_DATA = $(service_in_files:.service.in=.service)
 
-AM_CFLAGS = @OPENOBEX_CFLAGS@ @BLUEZ_CFLAGS@ \
-				@GTHREAD_CFLAGS@ @GLIB_CFLAGS@ @DBUS_CFLAGS@ \
-						-DPLUGINDIR=\""$(plugindir)"\"
+AM_CFLAGS = @BLUEZ_CFLAGS@ @EBOOK_CFLAGS@ @GTHREAD_CFLAGS@ @GLIB_CFLAGS@ \
+			@DBUS_CFLAGS@ @LIBICAL_CFLAGS@ @TRACKER_CFLAGS@ \
+			-DOBEX_PLUGIN_BUILTIN -DPLUGINDIR=\""$(plugindir)"\" \
+			-D_FILE_OFFSET_BITS=64
 
-INCLUDES = -I$(top_srcdir)/gdbus -I$(top_srcdir)/gwobex -I$(top_srcdir)/src
+INCLUDES = -I$(builddir)/src -I$(srcdir)/src -I$(srcdir)/plugins \
+				-I$(srcdir)/gdbus \
+				-I$(srcdir)/btio -I$(srcdir)/gobex
 
-CLEANFILES = $(service_DATA)
+CLEANFILES = $(service_DATA) $(builtin_files)
 
-EXTRA_DIST = $(doc_files) $(test_files) src/obex.conf \
-			src/obexd.service.in client/obex-client.service.in
+EXTRA_DIST = src/genbuiltin $(doc_files) $(test_files) \
+			src/obexd.service.in client/obex-client.service.in \
+			plugins/phonebook-dummy.c plugins/phonebook-ebook.c \
+			plugins/phonebook-tracker.c \
+			plugins/messages-dummy.c plugins/messages-tracker.c
 
-DISTCHECK_CONFIGURE_FLAGS = --enable-client --enable-server --enable-ebook
+DISTCHECK_CONFIGURE_FLAGS = --enable-client --enable-server
 
 MAINTAINERCLEANFILES = Makefile.in \
 	aclocal.m4 configure config.h.in config.sub config.guess \
-	ltmain.sh depcomp missing install-sh mkinstalldirs
+	ltmain.sh depcomp compile missing install-sh mkinstalldirs
 
 %.service: %.service.in config.log
 	$(AM_V_GEN)$(SED) -e "s|\@libexecdir\@|$(libexecdir)|" $< > $@
+
+plugins/phonebook.c: plugins/@PHONEBOOK_DRIVER@
+	$(AM_V_GEN)$(LN_S) @abs_top_srcdir@/$< $@
+
+plugins/messages.c: plugins/@MESSAGES_DRIVER@
+	$(AM_V_GEN)$(LN_S) @abs_top_srcdir@/$< $@
+
+TESTS = unit/test-gobex-header unit/test-gobex-packet unit/test-gobex \
+						unit/test-gobex-transfer
+
+noinst_PROGRAMS += unit/test-gobex-header unit/test-gobex-packet \
+				unit/test-gobex unit/test-gobex-transfer
+
+unit_test_gobex_SOURCES = $(gobex_sources) unit/test-gobex.c \
+							unit/util.c unit/util.h
+unit_test_gobex_LDADD = @GLIB_LIBS@
+
+unit_test_gobex_packet_SOURCES = $(gobex_sources) unit/test-gobex-packet.c \
+							unit/util.c unit/util.h
+unit_test_gobex_packet_LDADD = @GLIB_LIBS@
+
+unit_test_gobex_header_SOURCES = $(gobex_sources) unit/test-gobex-header.c \
+							unit/util.c unit/util.h
+unit_test_gobex_header_LDADD = @GLIB_LIBS@
+
+unit_test_gobex_transfer_SOURCES = $(gobex_sources) unit/util.c unit/util.h \
+						unit/test-gobex-transfer.c
+unit_test_gobex_transfer_LDADD = @GLIB_LIBS@
+
+if READLINE
+noinst_PROGRAMS += tools/test-client
+tools_test_client_SOURCES = $(gobex_sources) $(btio_sources) \
+							tools/test-client.c
+tools_test_client_LDADD = @GLIB_LIBS@ @BLUEZ_LIBS@ @READLINE_LIBS@
+endif
+
+noinst_PROGRAMS += tools/test-server
+tools_test_server_SOURCES = $(gobex_sources) $(btio_sources) \
+							tools/test-server.c
+tools_test_server_LDADD = @GLIB_LIBS@ @BLUEZ_LIBS@

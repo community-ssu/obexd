@@ -1,0 +1,243 @@
+diff -cr plugins/phonebook-ebook.c plugins/phonebook-ebook.c
+*** plugins/phonebook-ebook.c	Thu May 17 11:12:17 2012
+--- plugins/phonebook-ebook.c	Sun Jul 22 12:47:07 2012
+***************
+*** 39,44 ****
+--- 39,55 ----
+  #include "phonebook.h"
+  #include "glib-helper.h"
+  
++ #define MY_VCARD_21 "BEGIN:VCARD\r\n\
++ VERSION:2.1\r\n\
++ N:;;;;\r\n\
++ END:VCARD\r\n"
++ 
++ #define MY_VCARD_30 "BEGIN:VCARD\r\n\
++ VERSION:3.0\r\n\
++ FN:\r\n\
++ N:;;;;\r\n\
++ END:VCARD\r\n"
++ 
+  #define QUERY_FN "(contains \"family_name\" \"%s\")"
+  #define QUERY_NAME "(contains \"given_name\" \"%s\")"
+  #define QUERY_PHONE "(contains \"phone\" \"%s\")"
+***************
+*** 112,117 ****
+--- 123,176 ----
+  	g_free(data);
+  }
+  
++ void fix_vcard_skype(GString *str)
++ {
++ 	char *skype = strstr(str->str, "\r\nX-SKYPE;skype:");
++ 
++ 	if (skype) {
++ 		char *eol;
++ 
++ 		skype += 2;
++ 		eol = strstr(skype + 14, "\r\n");
++ 		if (eol)
++ 			g_string_erase(str, skype - str->str,
++ 					eol - skype + 2);
++ 	}
++ }
++ 
++ void fix_vcard_photo_empty_line(GString *str)
++ {
++ 	char *photo = strstr(str->str, "\r\nPHOTO;VALUE=uri:");
++ 
++ 	if (photo) {
++ 		photo += 2;
++ 		photo = strstr(photo + 16, "\r\n");
++ 		if (photo) {
++ 			photo += 2;
++ 			if (strncmp(photo, "\r\n", 2))
++ 				g_string_insert(str, photo - str->str,
++ 						"\r\n");
++ 		}
++ 	}
++ }
++ 
++ static char *vcard_fixes(char *vcard, gboolean filtered)
++ {
++ 	if (0) {
++ 		return vcard;
++ 	} else {
++ 		GString *svc = g_string_new(vcard);
++ 		if (1)
++ 			fix_vcard_photo_empty_line(svc);
++ 		if (!filtered) {
++ 			if (1)
++ 				fix_vcard_skype(svc);
++ 		}
++ 
++ 		return g_string_free(svc, FALSE);
++ 	}
++ }
++ 
+  static char *evcard_to_string(EVCard *evcard, unsigned int format,
+  							uint64_t filter)
+  {
+***************
+*** 120,126 ****
+  	char *vcard;
+  
+  	if (!filter)
+! 		return e_vcard_to_string(evcard, EVC_FORMAT_VCARD_30);
+  		/* XXX There is no support for VCARD 2.1 at this time */
+  
+  	/*
+--- 179,185 ----
+  	char *vcard;
+  
+  	if (!filter)
+! 		return vcard_fixes(e_vcard_to_string(evcard, EVC_FORMAT_VCARD_30), FALSE);
+  		/* XXX There is no support for VCARD 2.1 at this time */
+  
+  	/*
+***************
+*** 152,158 ****
+  		}
+  	}
+  
+! 	vcard = e_vcard_to_string(evcard2, format);
+  	g_object_unref(evcard2);
+  
+  	return vcard;
+--- 211,217 ----
+  		}
+  	}
+  
+! 	vcard = vcard_fixes(e_vcard_to_string(evcard2, format), TRUE);
+  	g_object_unref(evcard2);
+  
+  	return vcard;
+***************
+*** 188,193 ****
+--- 247,283 ----
+  		goto done;
+  	}
+  
++ 	if (!data->params->liststartoffset && !*data->buf->str) {
++ 		EBook *eb;
++ 		EContact *contact = NULL;
++ 		GError *gerr = NULL;
++ 
++ 		/* Add 0.vcf */
++ 		if (e_book_get_self(&contact, &eb, &gerr) == FALSE) {
++ 			g_error_free(gerr);
++ 
++ 			if (data->params->format == EVC_FORMAT_VCARD_21)
++ 				data->buf = g_string_append(data->buf,
++ 						MY_VCARD_21);
++ 			else if (data->params->format == EVC_FORMAT_VCARD_30)
++ 				data->buf = g_string_append(data->buf,
++ 						MY_VCARD_30);
++ 		} else {
++ 			EVCard *evcard = E_VCARD(contact);
++ 			char *vcard = evcard_to_string(evcard,
++ 					data->params->format,
++ 					data->params->filter);
++ 
++ 			data->buf = g_string_append(data->buf, vcard);
++ 			data->buf = g_string_append(data->buf, "\r\n");
++ 
++ 			g_free(vcard);
++ 			g_object_unref(contact);
++ 			g_object_unref(eb);
++ 		}
++ 		data->count++;
++ 	}
++ 
+  	l = g_list_nth(contacts, data->params->liststartoffset);
+  
+  	for (count = 0; l && count + data->count < maxcount; l = g_list_next(l),
+***************
+*** 607,627 ****
+  	data->params = params;
+  	data->user_data = user_data;
+  	data->id = g_strdup(id);
+- 	data->ebooks = open_ebooks();
+  
+! 	for (l = data->ebooks; l != NULL; l = g_slist_next(l)) {
+! 		EBook *ebook = l->data;
+  
+! 		if (e_book_is_opened(ebook) == FALSE)
+! 			continue;
+  
+! 		if (e_book_get_contact_async(ebook, data->id,
+  						ebook_entry_cb, data) == TRUE)
+! 			data->queued_calls++;
+! 	}
+  
+! 	if (err)
+! 		*err = (data->queued_calls == 0 ? -ENOENT : 0);
+  
+  	return data;
+  }
+--- 697,748 ----
+  	data->params = params;
+  	data->user_data = user_data;
+  	data->id = g_strdup(id);
+  
+! 	if (g_strcmp0(data->id, "0") == 0) {
+! 		EBook *eb;
+! 		EContact *contact = NULL;
+! 		GError *gerr = NULL;
+! 		gchar *vcard = NULL;
+! 
+! 		/* Add 0.vcf */
+! 		if (e_book_get_self(&contact, &eb, &gerr) == FALSE) {
+! 			g_error_free(gerr);
+! 
+! 			if (data->params->format == EVC_FORMAT_VCARD_21)
+! 				vcard = MY_VCARD_21;
+! 			else if (data->params->format == EVC_FORMAT_VCARD_30)
+! 				vcard = MY_VCARD_30;
+! 
+! 			data->contacts_cb(vcard, strlen(vcard), 1, 0, TRUE, data->user_data);
+! 		} else {
+! 			EVCard *evcard = E_VCARD(contact);
+! 			vcard = evcard_to_string(evcard,
+! 					data->params->format,
+! 					data->params->filter);
+! 			
+! 			g_object_unref(contact);
+! 			g_object_unref(eb);
+  
+! 			data->contacts_cb(vcard, strlen(vcard), 1, 0, TRUE, data->user_data);
+! 			g_free(vcard);
+! 		}
+! 	} else {
+! 		data->ebooks = open_ebooks();
+! 
+! 		for (l = data->ebooks; l != NULL; l = g_slist_next(l)) {
+! 			EBook *ebook = l->data;
+  
+! 			if (e_book_is_opened(ebook) == FALSE)
+! 				continue;
+! 
+! 			if (e_book_get_contact_async(ebook, data->id,
+  						ebook_entry_cb, data) == TRUE)
+! 				data->queued_calls++;
+! 		}
+  
+! 		if (err)
+! 			*err = (data->queued_calls == 0 ? -ENOENT : 0);
+! 	}
+  
+  	return data;
+  }
+***************
+*** 660,665 ****
+--- 781,790 ----
+  	/* Add 0.vcf */
+  	if (e_book_get_self(&me, &eb, &gerr) == FALSE) {
+  		g_error_free(gerr);
++ 
++ 		data->entry_cb("0", 0, "", NULL, NULL, data->user_data);
++ 		data->count++;
++ 
+  		goto next;
+  	}
+  

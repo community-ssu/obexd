@@ -2,8 +2,8 @@
  *
  *  OBEX Client
  *
- *  Copyright (C) 2007-2008  Intel Corporation
- *  Copyright (C) 2007-2009  Marcel Holtmann <marcel@holtmann.org>
+ *  Copyright (C) 2007-2010  Intel Corporation
+ *  Copyright (C) 2007-2010  Marcel Holtmann <marcel@holtmann.org>
  *
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -27,11 +27,23 @@
 #endif
 
 #include <errno.h>
+#include <string.h>
+#include <stdio.h>
 #include <glib.h>
 #include <gdbus.h>
 
+#include <bluetooth/bluetooth.h>
+
+#include "log.h"
+
+#include "transfer.h"
 #include "session.h"
+#include "driver.h"
 #include "pbap.h"
+
+#define OBEX_PBAP_UUID \
+	"\x79\x61\x35\xF0\xF0\xC5\x11\xD8\x09\x66\x08\x00\x20\x0C\x9A\x66"
+#define OBEX_PBAP_UUID_LEN 16
 
 #define ERROR_INF PBAP_INTERFACE ".Error"
 
@@ -110,6 +122,22 @@ static const char *filter_list[] = {
 #define FILTER_BIT_MAX	63
 #define FILTER_ALL	0xFFFFFFFFFFFFFFFFULL
 
+#define PBAP_INTERFACE  "org.openobex.PhonebookAccess"
+#define PBAP_UUID "0000112f-0000-1000-8000-00805f9b34fb"
+
+struct pbap_data {
+	struct obc_session *session;
+	char *path;
+	guint8 format;
+	guint8 order;
+	uint64_t filter;
+};
+
+struct pending_request {
+	struct pbap_data *pbap;
+	DBusMessage *msg;
+};
+
 struct pullphonebook_apparam {
 	uint8_t     filter_tag;
 	uint8_t     filter_len;
@@ -141,6 +169,26 @@ struct apparam_hdr {
 } __attribute__ ((packed));
 
 #define APPARAM_HDR_SIZE 2
+
+static DBusConnection *conn = NULL;
+
+static struct pending_request *pending_request_new(struct pbap_data *pbap,
+							DBusMessage *message)
+{
+	struct pending_request *p;
+
+	p = g_new0(struct pending_request, 1);
+	p->pbap = pbap;
+	p->msg = dbus_message_ref(message);
+
+	return p;
+}
+
+static void pending_request_free(struct pending_request *p)
+{
+	dbus_message_unref(p->msg);
+	g_free(p);
+}
 
 static void listing_element(GMarkupParseContext *ctxt,
 				const gchar *element,
@@ -216,90 +264,55 @@ static gchar *build_phonebook_path(const char *location, const char *item)
 }
 
 /* should only be called inside pbap_set_path */
-static void pbap_reset_path(struct session_data *session)
+static void pbap_reset_path(struct pbap_data *pbap)
 {
-	int err = 0;
-	char **paths = NULL, **item;
-	struct pbap_data *pbapdata = session_get_data(session);
-
-	if (!pbapdata->path)
+	if (!pbap->path)
 		return;
 
-	gw_obex_chdir(session->obex, "", &err);
-
-	paths = g_strsplit(pbapdata->path, "/", 3);
-
-	for (item = paths; *item; item++)
-		gw_obex_chdir(session->obex, *item, &err);
-
-	g_strfreev(paths);
+	obc_session_setpath(pbap->session, pbap->path, NULL, NULL, NULL);
 }
 
-static gint pbap_set_path(struct session_data *session, const char *path)
+static void pbap_setpath_cb(struct obc_session *session,
+						struct obc_transfer *transfer,
+						GError *err, void *user_data)
 {
-	int err = 0;
-	char **paths = NULL, **item;
-	struct pbap_data *pbapdata = session_get_data(session);
+	struct pending_request *request = user_data;
+	struct pbap_data *pbap = request->pbap;
 
-	if (!path)
-		return OBEX_RSP_BAD_REQUEST;
+	if (err != NULL)
+		pbap_reset_path(pbap);
 
-	if (pbapdata->path != NULL && 	g_str_equal(pbapdata->path, path))
-		return 0;
+	if (err) {
+		DBusMessage *reply = g_dbus_create_error(request->msg,
+							ERROR_INF ".Failed",
+							"%s", err->message);
+		g_dbus_send_message(conn, reply);
+	} else
+		g_dbus_send_reply(conn, request->msg, DBUS_TYPE_INVALID);
 
-	if (gw_obex_chdir(session->obex, "", &err) == FALSE) {
-		if (err == OBEX_RSP_NOT_IMPLEMENTED)
-			goto done;
-		goto fail;
-	}
-
-	paths = g_strsplit(path, "/", 3);
-	for (item = paths; *item; item++) {
-		if (gw_obex_chdir(session->obex, *item, &err) == FALSE) {
-			/* we need to reset the path to the saved one on fail*/
-			pbap_reset_path(session);
-			goto fail;
-		}
-	}
-
-	g_strfreev(paths);
-
-done:
-	g_free(pbapdata->path);
-	pbapdata->path = g_strdup(path);
-	return 0;
-
-fail:
-	if (paths)
-		g_strfreev(paths);
-
-	return err;
+	pending_request_free(request);
 }
 
-static void read_return_apparam(struct session_data *session,
+static void read_return_apparam(struct obc_transfer *transfer,
 				guint16 *phone_book_size, guint8 *new_missed_calls)
 {
-	GwObexXfer *xfer = session->xfer;
-	unsigned char *buf;
-	size_t size = 0;
+	const struct apparam_hdr *hdr;
+	size_t size;
 
 	*phone_book_size = 0;
 	*new_missed_calls = 0;
 
-	if (xfer == NULL)
+	hdr = obc_transfer_get_params(transfer, &size);
+	if (hdr == NULL)
 		return;
-
-	buf = gw_obex_xfer_object_apparam(xfer, &size);
 
 	if (size < APPARAM_HDR_SIZE)
 		return;
 
 	while (size > APPARAM_HDR_SIZE) {
-		struct apparam_hdr *hdr = (struct apparam_hdr *) buf;
-
 		if (hdr->len > size - APPARAM_HDR_SIZE) {
-			fprintf(stderr, "Unexpected PBAP pullphonebook app"
-					" length, tag %d, len %d\n",
+			error("Unexpected PBAP pullphonebook app"
+					" length, tag %d, len %d",
 					hdr->tag, hdr->len);
 			return;
 		}
@@ -309,7 +322,7 @@ static void read_return_apparam(struct session_data *session,
 			if (hdr->len == PHONEBOOKSIZE_LEN) {
 				guint16 val;
 				memcpy(&val, hdr->val, sizeof(val));
-				*phone_book_size = val;
+				*phone_book_size = get_be16(&val);
 			}
 			break;
 		case NEWMISSEDCALLS_TAG:
@@ -317,77 +330,113 @@ static void read_return_apparam(struct session_data *session,
 				*new_missed_calls = hdr->val[0];
 			break;
 		default:
-			fprintf(stderr, "Unexpected PBAP pullphonebook app"
-					" parameter, tag %d, len %d\n",
+			error("Unexpected PBAP pullphonebook app"
+					" parameter, tag %d, len %d",
 					hdr->tag, hdr->len);
 		}
 
-		buf += APPARAM_HDR_SIZE + hdr->len;
 		size -= APPARAM_HDR_SIZE + hdr->len;
+		hdr += APPARAM_HDR_SIZE + hdr->len;
 	}
 }
 
-static void pull_phonebook_callback(struct session_data *session,
-					void *user_data)
+static void pull_phonebook_callback(struct obc_session *session,
+						struct obc_transfer *transfer,
+						GError *err, void *user_data)
 {
+	struct pending_request *request = user_data;
 	DBusMessage *reply;
-	char *buf = "";
+	char *contents;
+	size_t size;
+	int perr;
 
-	reply = dbus_message_new_method_return(session->msg);
+	if (err) {
+		reply = g_dbus_create_error(request->msg,
+						"org.openobex.Error.Failed",
+						"%s", err->message);
+		goto send;
+	}
 
-	if (session->filled > 0)
-		buf = session->buffer;
+	perr = obc_transfer_get_contents(transfer, &contents, &size);
+	if (perr < 0) {
+		reply = g_dbus_create_error(request->msg,
+						"org.openobex.Error.Failed",
+						"Error reading contents: %s",
+						strerror(-perr));
+		goto send;
+	}
+
+	reply = dbus_message_new_method_return(request->msg);
 
 	dbus_message_append_args(reply,
-			DBUS_TYPE_STRING, &buf,
+			DBUS_TYPE_STRING, &contents,
 			DBUS_TYPE_INVALID);
 
-	session->filled = 0;
-	g_dbus_send_message(session->conn, reply);
-	dbus_message_unref(session->msg);
-	session->msg = NULL;
+	g_free(contents);
+
+send:
+	g_dbus_send_message(conn, reply);
+	pending_request_free(request);
 }
 
-static void phonebook_size_callback(struct session_data *session,
-					void *user_data)
+static void phonebook_size_callback(struct obc_session *session,
+						struct obc_transfer *transfer,
+						GError *err, void *user_data)
 {
+	struct pending_request *request = user_data;
 	DBusMessage *reply;
 	guint16 phone_book_size;
 	guint8 new_missed_calls;
 
-	reply = dbus_message_new_method_return(session->msg);
+	if (err) {
+		reply = g_dbus_create_error(request->msg,
+						"org.openobex.Error.Failed",
+						"%s", err->message);
+		goto send;
+	}
 
-	read_return_apparam(session, &phone_book_size, &new_missed_calls);
+	reply = dbus_message_new_method_return(request->msg);
+
+	read_return_apparam(transfer, &phone_book_size, &new_missed_calls);
 
 	dbus_message_append_args(reply,
 			DBUS_TYPE_UINT16, &phone_book_size,
 			DBUS_TYPE_INVALID);
 
-	session->filled = 0;
-	g_dbus_send_message(session->conn, reply);
-	dbus_message_unref(session->msg);
-	session->msg = NULL;
+send:
+	g_dbus_send_message(conn, reply);
+	pending_request_free(request);
 }
 
-static void pull_vcard_listing_callback(struct session_data *session,
-					void *user_data)
+static void pull_vcard_listing_callback(struct obc_session *session,
+						struct obc_transfer *transfer,
+						GError *err, void *user_data)
 {
+	struct pending_request *request = user_data;
 	GMarkupParseContext *ctxt;
 	DBusMessage *reply;
 	DBusMessageIter iter, array;
-	int i;
+	char *contents;
+	size_t size;
+	int perr;
 
-	reply = dbus_message_new_method_return(session->msg);
-
-	if (session->filled == 0)
-		goto done;
-
-	for (i = session->filled - 1; i > 0; i--) {
-		if (session->buffer[i] != '\0')
-			break;
-
-		session->filled--;
+	if (err) {
+		reply = g_dbus_create_error(request->msg,
+						"org.openobex.Error.Failed",
+						"%s", err->message);
+		goto send;
 	}
+
+	perr = obc_transfer_get_contents(transfer, &contents, &size);
+	if (perr < 0) {
+		reply = g_dbus_create_error(request->msg,
+						"org.openobex.Error.Failed",
+						"Error reading contents: %s",
+						strerror(-perr));
+		goto send;
+	}
+
+	reply = dbus_message_new_method_return(request->msg);
 
 	dbus_message_iter_init_append(reply, &iter);
 	dbus_message_iter_open_container(&iter, DBUS_TYPE_ARRAY,
@@ -395,32 +444,32 @@ static void pull_vcard_listing_callback(struct session_data *session,
 			DBUS_TYPE_STRING_AS_STRING DBUS_TYPE_STRING_AS_STRING
 			DBUS_STRUCT_END_CHAR_AS_STRING, &array);
 	ctxt = g_markup_parse_context_new(&listing_parser, 0, &array, NULL);
-	g_markup_parse_context_parse(ctxt, session->buffer,
-					session->filled, NULL);
+	g_markup_parse_context_parse(ctxt, contents, size, NULL);
 	g_markup_parse_context_free(ctxt);
 	dbus_message_iter_close_container(&iter, &array);
+	g_free(contents);
 
-	session->filled = 0;
-
-done:
-	g_dbus_send_message(session->conn, reply);
-	dbus_message_unref(session->msg);
-	session->msg = NULL;
+send:
+	g_dbus_send_message(conn, reply);
+	pending_request_free(request);
 }
 
-static DBusMessage *pull_phonebook(struct session_data *session,
+static DBusMessage *pull_phonebook(struct pbap_data *pbap,
 					DBusMessage *message, guint8 type,
 					const char *name, uint64_t filter,
 					guint8 format, guint16 maxlistcount,
 					guint16 liststartoffset)
 {
+	struct pending_request *request;
 	struct pullphonebook_apparam apparam;
+	struct obc_transfer *transfer;
 	session_callback_t func;
+	GError *err = NULL;
+	DBusMessage *reply;
 
-	if (session->msg)
-		return g_dbus_create_error(message,
-				"org.openobex.Error.InProgress",
-				"Transfer in progress");
+	transfer = obc_transfer_get("x-bt/phonebook", name, NULL, &err);
+	if (transfer == NULL)
+		goto fail;
 
 	apparam.filter_tag = FILTER_TAG;
 	apparam.filter_len = FILTER_LEN;
@@ -443,21 +492,24 @@ static DBusMessage *pull_phonebook(struct session_data *session,
 		func = phonebook_size_callback;
 		break;
 	default:
-		fprintf(stderr, "Unexpected type : 0x%2x\n", type);
+		error("Unexpected type : 0x%2x", type);
 		return NULL;
 	}
 
-	if (session_get(session, "x-bt/phonebook", name, NULL,
-				(guint8 *) &apparam, sizeof(apparam),
-				func) < 0)
-		return g_dbus_create_error(message,
-				"org.openobex.Error.Failed",
-				"Failed");
+	request = pending_request_new(pbap, message);
 
-	session->msg = dbus_message_ref(message);
-	session->filled = 0;
+	obc_transfer_set_params(transfer, &apparam, sizeof(apparam));
 
-	return NULL;
+	if (obc_session_queue(pbap->session, transfer, func, request, &err))
+		return NULL;
+
+	pending_request_free(request);
+
+fail:
+	reply = g_dbus_create_error(message, "org.openobex.Error.Failed", "%s",
+								err->message);
+	g_error_free(err);
+	return reply;
 }
 
 static guint8 *fill_apparam(guint8 *dest, void *buf, guint8 tag, guint8 len)
@@ -472,19 +524,21 @@ static guint8 *fill_apparam(guint8 *dest, void *buf, guint8 tag, guint8 len)
 	return dest;
 }
 
-static DBusMessage *pull_vcard_listing(struct session_data *session,
+static DBusMessage *pull_vcard_listing(struct pbap_data *pbap,
 					DBusMessage *message, const char *name,
 					guint8 order, char *searchval, guint8 attrib,
 					guint16 count, guint16 offset)
 {
-	guint8 *p, *apparam = NULL;
+	struct pending_request *request;
+	struct obc_transfer *transfer;
+	guint8 *p, apparam[272];
 	gint apparam_size;
-	int err;
+	GError *err = NULL;
+	DBusMessage *reply;
 
-	if (session->msg)
-		return g_dbus_create_error(message,
-				"org.openobex.Error.InProgress",
-				"Transfer in progress");
+	transfer = obc_transfer_get("x-bt/vcard-listing", name, NULL, &err);
+	if (transfer == NULL)
+		goto fail;
 
 	/* trunc the searchval string if it's length exceed the max value of guint8 */
 	if (strlen(searchval) > 254)
@@ -495,10 +549,6 @@ static DBusMessage *pull_vcard_listing(struct session_data *session,
 			(APPARAM_HDR_SIZE + SEARCHATTRIB_LEN) +
 			(APPARAM_HDR_SIZE + MAXLISTCOUNT_LEN) +
 			(APPARAM_HDR_SIZE + LISTSTARTOFFSET_LEN);
-	apparam = g_try_malloc0(apparam_size);
-	if (!apparam)
-		return g_dbus_create_error(message,
-				ERROR_INF ".Failed", "No Memory");
 
 	p = apparam;
 
@@ -512,54 +562,53 @@ static DBusMessage *pull_vcard_listing(struct session_data *session,
 	offset = GUINT16_TO_BE(offset);
 	p = fill_apparam(p, &offset, LISTSTARTOFFSET_TAG, LISTSTARTOFFSET_LEN);
 
-	err = session_get(session, "x-bt/vcard-listing", name, NULL,
-				apparam, apparam_size, pull_vcard_listing_callback);
-	g_free(apparam);
-	if (err < 0)
-		return g_dbus_create_error(message,
-				"org.openobex.Error.Failed",
-				"Failed");
+	request = pending_request_new(pbap, message);
 
-	session->msg = dbus_message_ref(message);
-	session->filled = 0;
+	obc_transfer_set_params(transfer, apparam, apparam_size);
 
-	return NULL;
+	if (obc_session_queue(pbap->session, transfer,
+				pull_vcard_listing_callback, request, &err))
+		return NULL;
+
+	pending_request_free(request);
+
+fail:
+	reply = g_dbus_create_error(message, "org.openobex.Error.Failed", "%s",
+								err->message);
+	g_error_free(err);
+	return reply;
 }
 
-static int set_format(struct session_data *session, const char *formatstr)
+static int set_format(struct pbap_data *pbap, const char *formatstr)
 {
-	struct pbap_data *pbapdata = session_get_data(session);
-
 	if (!formatstr || g_str_equal(formatstr, "")) {
-		pbapdata->format = FORMAT_VCARD21;
+		pbap->format = FORMAT_VCARD21;
 		return 0;
 	}
 
 	if (!g_ascii_strcasecmp(formatstr, "vcard21"))
-		pbapdata->format = FORMAT_VCARD21;
+		pbap->format = FORMAT_VCARD21;
 	else if (!g_ascii_strcasecmp(formatstr, "vcard30"))
-		pbapdata->format = FORMAT_VCARD30;
+		pbap->format = FORMAT_VCARD30;
 	else
 		return -EINVAL;
 
 	return 0;
 }
 
-static int set_order(struct session_data *session, const char *orderstr)
+static int set_order(struct pbap_data *pbap, const char *orderstr)
 {
-	struct pbap_data *pbapdata = session_get_data(session);
-
 	if (!orderstr || g_str_equal(orderstr, "")) {
-		pbapdata->order = ORDER_INDEXED;
+		pbap->order = ORDER_INDEXED;
 		return 0;
 	}
 
 	if (!g_ascii_strcasecmp(orderstr, "indexed"))
-		pbapdata->order = ORDER_INDEXED;
+		pbap->order = ORDER_INDEXED;
 	else if (!g_ascii_strcasecmp(orderstr, "alphanumeric"))
-		pbapdata->order = ORDER_ALPHANUMERIC;
+		pbap->order = ORDER_ALPHANUMERIC;
 	else if (!g_ascii_strcasecmp(orderstr, "phonetic"))
-		pbapdata->order = ORDER_PHONETIC;
+		pbap->order = ORDER_PHONETIC;
 	else
 		return -EINVAL;
 
@@ -591,9 +640,8 @@ static uint64_t get_filter_mask(const char *filterstr)
 		return 0;
 }
 
-static int add_filter(struct session_data *session, const char *filterstr)
+static int add_filter(struct pbap_data *pbap, const char *filterstr)
 {
-	struct pbap_data *pbapdata = session_get_data(session);
 	uint64_t mask;
 
 	mask = get_filter_mask(filterstr);
@@ -601,13 +649,12 @@ static int add_filter(struct session_data *session, const char *filterstr)
 	if (mask == 0)
 		return -EINVAL;
 
-	pbapdata->filter |= mask;
+	pbap->filter |= mask;
 	return 0;
 }
 
-static int remove_filter(struct session_data *session, const char *filterstr)
+static int remove_filter(struct pbap_data *pbap, const char *filterstr)
 {
-	struct pbap_data *pbapdata = session_get_data(session);
 	uint64_t mask;
 
 	mask = get_filter_mask(filterstr);
@@ -615,7 +662,7 @@ static int remove_filter(struct session_data *session, const char *filterstr)
 	if (mask == 0)
 		return -EINVAL;
 
-	pbapdata->filter &= ~mask;
+	pbap->filter &= ~mask;
 	return 0;
 }
 
@@ -648,10 +695,11 @@ static gchar **get_filter_strs(uint64_t filter, gint *size)
 static DBusMessage *pbap_select(DBusConnection *connection,
 					DBusMessage *message, void *user_data)
 {
-	struct session_data *session = user_data;
+	struct pbap_data *pbap = user_data;
 	const char *item, *location;
-	char *path = NULL;
-	int err = 0;
+	char *path;
+	struct pending_request *request;
+	GError *err = NULL;
 
 	if (dbus_message_get_args(message, NULL,
 			DBUS_TYPE_STRING, &location,
@@ -661,36 +709,50 @@ static DBusMessage *pbap_select(DBusConnection *connection,
 				ERROR_INF ".InvalidArguments", NULL);
 
 	path = build_phonebook_path(location, item);
-	if (!path)
+	if (path == NULL)
 		return g_dbus_create_error(message,
-				ERROR_INF ".InvalidArguments", "InvalidPhonebook");
+				ERROR_INF ".InvalidArguments", "Invalid path");
 
-	err = pbap_set_path(session, path);
-	g_free(path);
-	if (err)
-		return g_dbus_create_error(message,
-				ERROR_INF ".Failed",
-				OBEX_ResponseToString(err));
+	if (pbap->path != NULL && g_str_equal(pbap->path, path)) {
+		g_free(path);
+		return dbus_message_new_method_return(message);
+	}
 
-	return dbus_message_new_method_return(message);
+	request = pending_request_new(pbap, message);
+
+	obc_session_setpath(pbap->session, path, pbap_setpath_cb, request,
+									&err);
+	if (err != NULL) {
+		DBusMessage *reply;
+		reply =  g_dbus_create_error(message, ERROR_INF ".Failed",
+							"%s", err->message);
+		g_error_free(err);
+		g_free(path);
+		pending_request_free(request);
+		return reply;
+	}
+
+	g_free(pbap->path);
+	pbap->path = path;
+
+	return NULL;
 }
 
 static DBusMessage *pbap_pull_all(DBusConnection *connection,
 					DBusMessage *message, void *user_data)
 {
-	struct session_data *session = user_data;
-	struct pbap_data *pbapdata = session_get_data(session);
+	struct pbap_data *pbap = user_data;
 	DBusMessage * err;
 	char *name;
 
-	if (!pbapdata->path)
+	if (!pbap->path)
 		return g_dbus_create_error(message,
 				ERROR_INF ".Forbidden", "Call Select first of all");
 
-	name = g_strconcat(pbapdata->path, ".vcf", NULL);
+	name = g_strconcat(pbap->path, ".vcf", NULL);
 
-	err = pull_phonebook(session, message, PULLPHONEBOOK, name,
-				pbapdata->filter, pbapdata->format,
+	err = pull_phonebook(pbap, message, PULLPHONEBOOK, name,
+				pbap->filter, pbap->format,
 				DEFAULT_COUNT, DEFAULT_OFFSET);
 	g_free(name);
 	return err;
@@ -699,14 +761,18 @@ static DBusMessage *pbap_pull_all(DBusConnection *connection,
 static DBusMessage *pbap_pull_vcard(DBusConnection *connection,
 					DBusMessage *message, void *user_data)
 {
-	struct session_data *session = user_data;
-	struct pbap_data *pbapdata = session_get_data(session);
+	struct pbap_data *pbap = user_data;
 	struct pullvcardentry_apparam apparam;
 	const char *name;
+	struct pending_request *request;
+	struct obc_transfer *transfer;
+	GError *err = NULL;
+	DBusMessage *reply;
 
-	if (!pbapdata->path)
+	if (!pbap->path)
 		return g_dbus_create_error(message,
-				ERROR_INF ".Forbidden", "Call Select first of all");
+				ERROR_INF ".Forbidden",
+				"Call Select first of all");
 
 	if (dbus_message_get_args(message, NULL,
 			DBUS_TYPE_STRING, &name,
@@ -714,50 +780,51 @@ static DBusMessage *pbap_pull_vcard(DBusConnection *connection,
 		return g_dbus_create_error(message,
 				ERROR_INF ".InvalidArguments", NULL);
 
-	if (session->msg)
-		return g_dbus_create_error(message,
-				"org.openobex.Error.InProgress",
-				"Transfer in progress");
+	transfer = obc_transfer_get("x-bt/vcard", name, NULL, &err);
+	if (transfer == NULL)
+		goto fail;
 
 	apparam.filter_tag = FILTER_TAG;
 	apparam.filter_len = FILTER_LEN;
-	apparam.filter = GUINT64_TO_BE(pbapdata->filter);
+	apparam.filter = GUINT64_TO_BE(pbap->filter);
 	apparam.format_tag = FORMAT_TAG;
 	apparam.format_len = FORMAT_LEN;
-	apparam.format = pbapdata->format;
+	apparam.format = pbap->format;
 
-	if (session_get(session, "x-bt/vcard", name, NULL,
-			(guint8 *)&apparam, sizeof(apparam),
-			pull_phonebook_callback) < 0)
-		return g_dbus_create_error(message,
-				"org.openobex.Error.Failed",
-				"Failed");
+	request = pending_request_new(pbap, message);
 
-	session->msg = dbus_message_ref(message);
-	session->filled = 0;
+	obc_transfer_set_params(transfer, &apparam, sizeof(apparam));
 
-	return NULL;
+	if (obc_session_queue(pbap->session, transfer, pull_phonebook_callback,
+								request, &err))
+		return NULL;
+
+	pending_request_free(request);
+
+fail:
+	reply = g_dbus_create_error(message, "org.openobex.Error.Failed", "%s",
+								err->message);
+	g_error_free(err);
+	return reply;
 }
 
 static DBusMessage *pbap_list(DBusConnection *connection,
 					DBusMessage *message, void *user_data)
 {
-	struct session_data *session = user_data;
-	struct pbap_data *pbapdata = session_get_data(session);
+	struct pbap_data *pbap = user_data;
 
-	if (!pbapdata->path)
+	if (!pbap->path)
 		return g_dbus_create_error(message,
 				ERROR_INF ".Forbidden", "Call Select first of all");
 
-	return pull_vcard_listing(session, message, "", pbapdata->order, "",
+	return pull_vcard_listing(pbap, message, "", pbap->order, "",
 				ATTRIB_NAME, DEFAULT_COUNT, DEFAULT_OFFSET);
 }
 
 static DBusMessage *pbap_search(DBusConnection *connection,
 					DBusMessage *message, void *user_data)
 {
-	struct session_data *session = user_data;
-	struct pbap_data *pbapdata = session_get_data(session);
+	struct pbap_data *pbap = user_data;
 	char *field, *value;
 	guint8 attrib;
 
@@ -768,7 +835,7 @@ static DBusMessage *pbap_search(DBusConnection *connection,
 		return g_dbus_create_error(message,
 				ERROR_INF ".InvalidArguments", NULL);
 
-	if (!pbapdata->path)
+	if (!pbap->path)
 		return g_dbus_create_error(message,
 				ERROR_INF ".Forbidden", "Call Select first of all");
 
@@ -784,27 +851,26 @@ static DBusMessage *pbap_search(DBusConnection *connection,
 		return g_dbus_create_error(message,
 				ERROR_INF ".InvalidArguments", NULL);
 
-	return pull_vcard_listing(session, message, "", pbapdata->order, value,
-				attrib, DEFAULT_COUNT, DEFAULT_OFFSET);
+	return pull_vcard_listing(pbap, message, "", pbap->order, value,
+					attrib, DEFAULT_COUNT, DEFAULT_OFFSET);
 }
 
 static DBusMessage *pbap_get_size(DBusConnection *connection,
 					DBusMessage *message, void *user_data)
 {
-	struct session_data *session = user_data;
-	struct pbap_data *pbapdata = session_get_data(session);
+	struct pbap_data *pbap = user_data;
 	DBusMessage * err;
 	char *name;
 
-	if (!pbapdata->path)
+	if (!pbap->path)
 		return g_dbus_create_error(message,
 				ERROR_INF ".Forbidden", "Call Select first of all");
 
-	name = g_strconcat(pbapdata->path, ".vcf", NULL);
+	name = g_strconcat(pbap->path, ".vcf", NULL);
 
-	err = pull_phonebook(session, message, GETPHONEBOOKSIZE, name,
-				pbapdata->filter, pbapdata->format,
-				0, DEFAULT_OFFSET);
+	err = pull_phonebook(pbap, message, GETPHONEBOOKSIZE, name,
+				pbap->filter, pbap->format, 0,
+				DEFAULT_OFFSET);
 	g_free(name);
 	return err;
 }
@@ -812,7 +878,7 @@ static DBusMessage *pbap_get_size(DBusConnection *connection,
 static DBusMessage *pbap_set_format(DBusConnection *connection,
 					DBusMessage *message, void *user_data)
 {
-	struct session_data *session = user_data;
+	struct pbap_data *pbap = user_data;
 	const char *format;
 
 	if (dbus_message_get_args(message, NULL,
@@ -821,7 +887,7 @@ static DBusMessage *pbap_set_format(DBusConnection *connection,
 		return g_dbus_create_error(message,
 				ERROR_INF ".InvalidArguments", NULL);
 
-	if (set_format(session, format) < 0)
+	if (set_format(pbap, format) < 0)
 		return g_dbus_create_error(message,
 				ERROR_INF ".InvalidArguments", "InvalidFormat");
 
@@ -831,7 +897,7 @@ static DBusMessage *pbap_set_format(DBusConnection *connection,
 static DBusMessage *pbap_set_order(DBusConnection *connection,
 					DBusMessage *message, void *user_data)
 {
-	struct session_data *session = user_data;
+	struct pbap_data *pbap = user_data;
 	const char *order;
 
 	if (dbus_message_get_args(message, NULL,
@@ -840,7 +906,7 @@ static DBusMessage *pbap_set_order(DBusConnection *connection,
 		return g_dbus_create_error(message,
 				ERROR_INF ".InvalidArguments", NULL);
 
-	if (set_order(session, order) < 0)
+	if (set_order(pbap, order) < 0)
 		return g_dbus_create_error(message,
 				ERROR_INF ".InvalidArguments", "InvalidFilter");
 
@@ -850,11 +916,10 @@ static DBusMessage *pbap_set_order(DBusConnection *connection,
 static DBusMessage *pbap_set_filter(DBusConnection *connection,
 					DBusMessage *message, void *user_data)
 {
-	struct session_data *session = user_data;
-	struct pbap_data *pbapdata = session_get_data(session);
+	struct pbap_data *pbap = user_data;
 	char **filters, **item;
 	gint size;
-	uint64_t oldfilter = pbapdata->filter;
+	uint64_t oldfilter = pbap->filter;
 
 	if (dbus_message_get_args(message, NULL, DBUS_TYPE_ARRAY,
 			DBUS_TYPE_STRING, &filters, &size,
@@ -862,13 +927,13 @@ static DBusMessage *pbap_set_filter(DBusConnection *connection,
 		return g_dbus_create_error(message,
 				ERROR_INF ".InvalidArguments", NULL);
 
-	remove_filter(session, "ALL");
+	remove_filter(pbap, "ALL");
 	if (size == 0)
 		goto done;
 
 	for (item = filters; *item; item++) {
-		if (add_filter(session, *item) < 0) {
-			pbapdata->filter = oldfilter;
+		if (add_filter(pbap, *item) < 0) {
+			pbap->filter = oldfilter;
 			g_strfreev(filters);
 			return g_dbus_create_error(message,
 					ERROR_INF ".InvalidArguments", "InvalidFilters");
@@ -883,13 +948,12 @@ done:
 static DBusMessage *pbap_get_filter(DBusConnection *connection,
 					DBusMessage *message, void *user_data)
 {
-	struct session_data *session = user_data;
-	struct pbap_data *pbapdata = session_get_data(session);
+	struct pbap_data *pbap = user_data;
 	gchar **filters = NULL;
 	gint size;
 	DBusMessage *reply;
 
-	filters = get_filter_strs(pbapdata->filter, &size);
+	filters = get_filter_strs(pbap->filter, &size);
 	reply = dbus_message_new_method_return(message);
 	dbus_message_append_args(reply, DBUS_TYPE_ARRAY,
 				DBUS_TYPE_STRING, &filters, size,
@@ -917,7 +981,8 @@ static DBusMessage *pbap_list_filter_fields(DBusConnection *connection,
 }
 
 static GDBusMethodTable pbap_methods[] = {
-	{ "Select",	"ss",	"",	pbap_select },
+	{ "Select",	"ss",	"",	pbap_select,
+					G_DBUS_METHOD_FLAG_ASYNC },
 	{ "PullAll",	"",	"s",	pbap_pull_all,
 					G_DBUS_METHOD_FLAG_ASYNC },
 	{ "Pull",	"s",	"s",	pbap_pull_vcard,
@@ -936,28 +1001,83 @@ static GDBusMethodTable pbap_methods[] = {
 	{ }
 };
 
-gboolean pbap_register_interface(DBusConnection *connection, const char *path,
-				void *user_data, GDBusDestroyFunction destroy)
+static void pbap_free(void *data)
 {
-	struct session_data *session = user_data;
-	void *priv;
+	struct pbap_data *pbap = data;
 
-	priv = g_try_malloc0(sizeof(struct pbap_data));
-	if (!priv)
-		return FALSE;
-
-	session_set_data(session, priv);
-
-	return g_dbus_register_interface(connection, path, PBAP_INTERFACE,
-				pbap_methods, NULL, NULL, user_data, destroy);
+	obc_session_unref(pbap->session);
+	g_free(pbap->path);
+	g_free(pbap);
 }
 
-void pbap_unregister_interface(DBusConnection *connection, const char *path,
-				void *user_data)
+static int pbap_probe(struct obc_session *session)
 {
-	struct session_data *session = user_data;
-	void *priv = session_get_data(session);
+	struct pbap_data *pbap;
+	const char *path;
 
-	g_dbus_unregister_interface(connection, path, PBAP_INTERFACE);
-	g_free(priv);
+	path = obc_session_get_path(session);
+
+	DBG("%s", path);
+
+	pbap = g_try_new0(struct pbap_data, 1);
+	if (!pbap)
+		return -ENOMEM;
+
+	pbap->session = obc_session_ref(session);
+
+	if (!g_dbus_register_interface(conn, path, PBAP_INTERFACE, pbap_methods,
+						NULL, NULL, pbap, pbap_free)) {
+		pbap_free(pbap);
+		return -ENOMEM;
+	}
+
+	return 0;
+}
+
+static void pbap_remove(struct obc_session *session)
+{
+	const char *path = obc_session_get_path(session);
+
+	DBG("%s", path);
+
+	g_dbus_unregister_interface(conn, path, PBAP_INTERFACE);
+}
+
+static struct obc_driver pbap = {
+	.service = "PBAP",
+	.uuid = PBAP_UUID,
+	.target = OBEX_PBAP_UUID,
+	.target_len = OBEX_PBAP_UUID_LEN,
+	.probe = pbap_probe,
+	.remove = pbap_remove
+};
+
+int pbap_init(void)
+{
+	int err;
+
+	DBG("");
+
+	conn = dbus_bus_get(DBUS_BUS_SESSION, NULL);
+	if (!conn)
+		return -EIO;
+
+	err = obc_driver_register(&pbap);
+	if (err < 0) {
+		dbus_connection_unref(conn);
+		conn = NULL;
+		return err;
+	}
+
+	return 0;
+}
+
+void pbap_exit(void)
+{
+	DBG("");
+
+	dbus_connection_unref(conn);
+	conn = NULL;
+
+	obc_driver_unregister(&pbap);
 }

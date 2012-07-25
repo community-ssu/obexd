@@ -2,7 +2,7 @@
  *
  *  OBEX Server
  *
- *  Copyright (C) 2007-2009  Marcel Holtmann <marcel@holtmann.org>
+ *  Copyright (C) 2007-2010  Marcel Holtmann <marcel@holtmann.org>
  *
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -27,9 +27,16 @@ struct obex_plugin_desc {
 	void (*exit) (void);
 };
 
+#ifdef OBEX_PLUGIN_BUILTIN
+#define OBEX_PLUGIN_DEFINE(name, init, exit) \
+		struct obex_plugin_desc __obex_builtin_ ## name = { \
+			#name, init, exit \
+		};
+#else
 #define OBEX_PLUGIN_DEFINE(name,init,exit) \
 		extern struct obex_plugin_desc obex_plugin_desc \
 				__attribute__ ((visibility("default"))); \
 		struct obex_plugin_desc obex_plugin_desc = { \
-			name, init, exit \
+			#name, init, exit \
 		};
+#endif

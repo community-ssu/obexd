@@ -2,7 +2,7 @@
  *
  *  OBEX Server
  *
- *  Copyright (C) 2007-2009  Marcel Holtmann <marcel@holtmann.org>
+ *  Copyright (C) 2007-2010  Marcel Holtmann <marcel@holtmann.org>
  *
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -34,7 +34,7 @@
 
 #include "obexd.h"
 #include "plugin.h"
-#include "logging.h"
+#include "log.h"
 
 /*
  * Plugins that are using libraries with threads and their own mainloop
@@ -74,19 +74,68 @@ static gboolean add_plugin(void *handle, struct obex_plugin_desc *desc)
 	}
 
 	plugins = g_slist_append(plugins, plugin);
+	DBG("Plugin %s loaded", desc->name);
 
 	return TRUE;
 }
 
-gboolean plugin_init(void)
+static gboolean check_plugin(struct obex_plugin_desc *desc,
+				char **patterns, char **excludes)
 {
+	if (excludes) {
+		for (; *excludes; excludes++)
+			if (g_pattern_match_simple(*excludes, desc->name))
+				break;
+		if (*excludes) {
+			info("Excluding %s", desc->name);
+			return FALSE;
+		}
+	}
+
+	if (patterns) {
+		for (; *patterns; patterns++)
+			if (g_pattern_match_simple(*patterns, desc->name))
+				break;
+		if (*patterns == NULL) {
+			info("Ignoring %s", desc->name);
+			return FALSE;
+		}
+	}
+
+	return TRUE;
+}
+
+
+#include "builtin.h"
+
+gboolean plugin_init(const char *pattern, const char *exclude)
+{
+	gchar **patterns = NULL;
+	gchar **excludes = NULL;
 	GDir *dir;
-	const gchar *file;
+	const char *file;
+	unsigned int i;
 
 	if (strlen(PLUGINDIR) == 0)
 		return FALSE;
 
-	debug("Loading plugins %s", PLUGINDIR);
+	if (pattern)
+		patterns = g_strsplit_set(pattern, ":, ", -1);
+
+	if (exclude)
+		excludes = g_strsplit_set(exclude, ":, ", -1);
+
+	DBG("Loading builtin plugins");
+
+	for (i = 0; __obex_builtin[i]; i++) {
+		if (check_plugin(__obex_builtin[i],
+					patterns, excludes) == FALSE)
+			continue;
+
+		add_plugin(NULL,  __obex_builtin[i]);
+	}
+
+	DBG("Loading plugins %s", PLUGINDIR);
 
 	dir = g_dir_open(PLUGINDIR, 0, NULL);
 	if (!dir)
@@ -95,7 +144,7 @@ gboolean plugin_init(void)
 	while ((file = g_dir_read_name(dir)) != NULL) {
 		struct obex_plugin_desc *desc;
 		void *handle;
-		gchar *filename;
+		char *filename;
 
 		if (g_str_has_prefix(file, "lib") == TRUE ||
 				g_str_has_suffix(file, ".so") == FALSE)
@@ -120,11 +169,18 @@ gboolean plugin_init(void)
 			continue;
 		}
 
+		if (check_plugin(desc, patterns, excludes) == FALSE) {
+			dlclose(handle);
+			continue;
+		}
+
 		if (add_plugin(handle, desc) == FALSE)
 			dlclose(handle);
 	}
 
 	g_dir_close(dir);
+	g_strfreev(patterns);
+	g_strfreev(excludes);
 
 	return TRUE;
 }
@@ -133,7 +189,7 @@ void plugin_cleanup(void)
 {
 	GSList *list;
 
-	debug("Cleanup plugins");
+	DBG("Cleanup plugins");
 
 	for (list = plugins; list; list = list->next) {
 		struct obex_plugin *plugin = list->data;
@@ -141,7 +197,8 @@ void plugin_cleanup(void)
 		if (plugin->desc->exit)
 			plugin->desc->exit();
 
-		dlclose(plugin->handle);
+		if (plugin->handle != NULL)
+			dlclose(plugin->handle);
 
 		g_free(plugin);
 	}
