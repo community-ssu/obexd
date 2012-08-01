@@ -2,7 +2,7 @@ obexd (0.46-1maemo2+0cssu1) unstable; urgency=low
 
   * Fix CSSU version info
 
- -- Ludek Finstrle <luf@pzkagis.cz>  Wed,  1 Aug 2012 9:58:49 +0200
+ -- Ludek Finstrle <luf@pzkagis.cz>  Wed,  1 Aug 2012  9:58:49 +0200
 
 obexd (0.46-1maemo2+cssu1) unstable; urgency=low
 
