@@ -1,0 +1,34 @@
+diff -cr gdbus/object.c gdbus/object.c
+*** gdbus/object.c	Thu May 17 11:12:17 2012
+--- gdbus/object.c	Wed Aug  8 07:37:31 2012
+***************
+*** 617,632 ****
+  	for (signal = iface->signals; signal && signal->name; signal++) {
+  		if (!strcmp(signal->name, name)) {
+  			*args = signal->signature;
+! 			break;
+  		}
+  	}
+  
+! 	if (*args == NULL) {
+! 		error("No signal named %s on interface %s", name, interface);
+! 		return FALSE;
+! 	}
+! 
+! 	return TRUE;
+  }
+  
+  static dbus_bool_t emit_signal_valist(DBusConnection *conn,
+--- 617,628 ----
+  	for (signal = iface->signals; signal && signal->name; signal++) {
+  		if (!strcmp(signal->name, name)) {
+  			*args = signal->signature;
+! 			return TRUE;
+  		}
+  	}
+  
+! 	error("No signal named %s on interface %s", name, interface);
+! 	return FALSE;
+  }
+  
+  static dbus_bool_t emit_signal_valist(DBusConnection *conn,
