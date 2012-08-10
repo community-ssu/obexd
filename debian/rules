@@ -20,5 +20,12 @@ install/obexd::
 	install -D -m 0755 debian/obex-root-setup $(DEB_DESTDIR)/usr/bin/obex-root-setup
 
 install/obexd-test::
+	install -D -m 0754 test/exchange-business-cards $(DEB_DESTDIR)/usr/bin/obexd-exchange-business-cards
+	install -D -m 0754 test/ftp-client $(DEB_DESTDIR)/usr/bin/obexd-ftp-client
+	install -D -m 0754 test/list-folders $(DEB_DESTDIR)/usr/bin/obexd-list-folders
+	install -D -m 0754 test/map-client $(DEB_DESTDIR)/usr/bin/obexd-map-client
+	install -D -m 0754 test/pbap-client $(DEB_DESTDIR)/usr/bin/obexd-pbap-client
+	install -D -m 0754 test/pull-business-card $(DEB_DESTDIR)/usr/bin/obexd-pull-business-card
+	install -D -m 0754 test/send-files $(DEB_DESTDIR)/usr/bin/obexd-send-files
 	install -D -m 0754 test/simple-agent $(DEB_DESTDIR)/usr/bin/obexd-simple-agent
 
