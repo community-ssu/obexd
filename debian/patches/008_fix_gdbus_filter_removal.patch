@@ -1,0 +1,68 @@
+diff -cr gdbus/watch.c gdbus/watch.c
+*** gdbus/watch.c	Thu May 17 11:12:17 2012
+--- gdbus/watch.c	Wed Aug  8 07:28:11 2012
+***************
+*** 376,390 ****
+  
+  	connection = dbus_connection_ref(data->connection);
+  	listeners = g_slist_remove(listeners, data);
+- 	filter_data_free(data);
+  
+  	/* Remove filter if there are no listeners left for the connection */
+! 	data = filter_data_find(connection, NULL, NULL, NULL, NULL, NULL,
+! 					NULL);
+! 	if (data == NULL)
+  		dbus_connection_remove_filter(connection, message_filter,
+  						NULL);
+  
+  	dbus_connection_unref(connection);
+  
+  	return TRUE;
+--- 376,389 ----
+  
+  	connection = dbus_connection_ref(data->connection);
+  	listeners = g_slist_remove(listeners, data);
+  
+  	/* Remove filter if there are no listeners left for the connection */
+! 	if (filter_data_find(connection, NULL, NULL, NULL, NULL, NULL,
+! 								NULL) == NULL)
+  		dbus_connection_remove_filter(connection, message_filter,
+  						NULL);
+  
++ 	filter_data_free(data);
+  	dbus_connection_unref(connection);
+  
+  	return TRUE;
+***************
+*** 537,551 ****
+  	remove_match(data);
+  
+  	listeners = g_slist_remove(listeners, data);
+- 	filter_data_free(data);
+  
+  	/* Remove filter if there no listener left for the connection */
+! 	data = filter_data_find(connection, NULL, NULL, NULL, NULL, NULL,
+! 					NULL);
+! 	if (data == NULL)
+  		dbus_connection_remove_filter(connection, message_filter,
+  						NULL);
+  
+  	return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+  }
+  
+--- 536,550 ----
+  	remove_match(data);
+  
+  	listeners = g_slist_remove(listeners, data);
+  
+  	/* Remove filter if there no listener left for the connection */
+! 	if (filter_data_find(connection, NULL, NULL, NULL, NULL, NULL,
+! 								NULL) == NULL)
+  		dbus_connection_remove_filter(connection, message_filter,
+  						NULL);
+  
++ 	filter_data_free(data);
++ 
+  	return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+  }
+  
