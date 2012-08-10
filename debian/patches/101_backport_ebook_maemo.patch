@@ -1,6 +1,6 @@
 diff -cr plugins/phonebook-ebook.c plugins/phonebook-ebook.c
-*** plugins/phonebook-ebook.c	Sun Jul 22 12:47:07 2012
---- plugins/phonebook-ebook.c	Sun Jul 22 12:50:00 2012
+*** plugins/phonebook-ebook.c	Tue Aug  7 18:54:42 2012
+--- plugins/phonebook-ebook.c	Tue Aug  7 18:56:38 2012
 ***************
 *** 179,186 ****
   	char *vcard;
@@ -181,7 +181,7 @@ diff -cr plugins/phonebook-ebook.c plugins/phonebook-ebook.c
   	}
   
 ***************
-*** 735,742 ****
+*** 743,750 ****
   			if (e_book_is_opened(ebook) == FALSE)
   				continue;
   
@@ -190,7 +190,7 @@ diff -cr plugins/phonebook-ebook.c plugins/phonebook-ebook.c
   				data->queued_calls++;
   		}
   
---- 734,741 ----
+--- 742,749 ----
   			if (e_book_is_opened(ebook) == FALSE)
   				continue;
   
@@ -200,7 +200,7 @@ diff -cr plugins/phonebook-ebook.c plugins/phonebook-ebook.c
   		}
   
 ***************
-*** 821,828 ****
+*** 829,836 ****
   		if (e_book_is_opened(ebook) == FALSE)
   			continue;
   
@@ -209,7 +209,7 @@ diff -cr plugins/phonebook-ebook.c plugins/phonebook-ebook.c
   			data->queued_calls++;
   	}
   
---- 820,827 ----
+--- 828,835 ----
   		if (e_book_is_opened(ebook) == FALSE)
   			continue;
   
