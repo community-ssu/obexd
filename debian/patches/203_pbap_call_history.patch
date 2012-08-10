@@ -1,13 +1,13 @@
 diff -cr Makefile.am Makefile.am
-*** Makefile.am	Sun Jul 22 13:04:23 2012
---- Makefile.am	Sun Jul 22 13:05:58 2012
+*** Makefile.am	Tue Aug  7 18:58:03 2012
+--- Makefile.am	Tue Aug  7 18:58:37 2012
 ***************
 *** 88,93 ****
 --- 88,94 ----
   
   src_obexd_LDADD = @DBUS_LIBS@ @GLIB_LIBS@ @GTHREAD_LIBS@ \
   					@EBOOK_LIBS@ @BLUEZ_LIBS@ \
-+ 					@RTCOM_EVENTLOGGER_LIBS@ \
++ 					@RTCOM_EVENTLOGGER_ASYNC_LIBS@ \
   					@LIBICAL_LIBS@ @TRACKER_LIBS@ -ldl
   
   src_obexd_LDFLAGS = -Wl,--export-dynamic
@@ -24,21 +24,21 @@ diff -cr Makefile.am Makefile.am
   service_DATA = $(service_in_files:.service.in=.service)
   
   AM_CFLAGS = @BLUEZ_CFLAGS@ @EBOOK_CFLAGS@ @GTHREAD_CFLAGS@ @GLIB_CFLAGS@ \
-! 			@DBUS_CFLAGS@ @RTCOM_EVENTLOGGER_CFALGS@ \
+! 			@DBUS_CFLAGS@ @RTCOM_EVENTLOGGER_ASYNC_CFALGS@ \
 ! 			@LIBICAL_CFLAGS@ @TRACKER_CFLAGS@ \
   			-DOBEX_PLUGIN_BUILTIN -DPLUGINDIR=\""$(plugindir)"\" \
   			-D_FILE_OFFSET_BITS=64
   
 diff -cr Makefile.in Makefile.in
-*** Makefile.in	Sun Jul 22 13:04:42 2012
---- Makefile.in	Sun Jul 22 13:05:58 2012
+*** Makefile.in	Tue Aug  7 18:58:21 2012
+--- Makefile.in	Tue Aug  7 18:58:37 2012
 ***************
 *** 468,473 ****
 --- 468,474 ----
   
   @SERVER_TRUE@src_obexd_LDADD = @DBUS_LIBS@ @GLIB_LIBS@ @GTHREAD_LIBS@ \
   @SERVER_TRUE@					@EBOOK_LIBS@ @BLUEZ_LIBS@ \
-+ @SERVER_TRUE@					@RTCOM_EVENTLOGGER_LIBS@ \
++ @SERVER_TRUE@					@RTCOM_EVENTLOGGER_ASYNC_LIBS@ \
   @SERVER_TRUE@					@LIBICAL_LIBS@ @TRACKER_LIBS@ -ldl
   
   @SERVER_TRUE@src_obexd_LDFLAGS = -Wl,--export-dynamic
@@ -55,37 +55,37 @@ diff -cr Makefile.in Makefile.in
   @CLIENT_TRUE@client_obex_client_LDADD = @GLIB_LIBS@ @DBUS_LIBS@ @BLUEZ_LIBS@
   service_DATA = $(service_in_files:.service.in=.service)
   AM_CFLAGS = @BLUEZ_CFLAGS@ @EBOOK_CFLAGS@ @GTHREAD_CFLAGS@ @GLIB_CFLAGS@ \
-! 			@DBUS_CFLAGS@ @RTCOM_EVENTLOGGER_CFLAGS@ \
+! 			@DBUS_CFLAGS@ @RTCOM_EVENTLOGGER_ASYNC_CFLAGS@ \
 ! 			@LIBICAL_CFLAGS@ @TRACKER_CFLAGS@ \
   			-DOBEX_PLUGIN_BUILTIN -DPLUGINDIR=\""$(plugindir)"\" \
   			-D_FILE_OFFSET_BITS=64
   
 diff -cr config.h.in config.h.in
-*** config.h.in	Sun Jul 22 13:04:42 2012
---- config.h.in	Sun Jul 22 13:05:58 2012
+*** config.h.in	Tue Aug  7 18:58:21 2012
+--- config.h.in	Tue Aug  7 18:58:37 2012
 ***************
 *** 39,44 ****
 --- 39,47 ----
   /* Define to 1 if you have the <unistd.h> header file. */
   #undef HAVE_UNISTD_H
   
-+ /* Define to 1 if you want rtcom-eventlogger support. */
-+ #undef HAVE_RTCOM_EVENTLOGGER
++ /* Define to 1 if you want rtcom-eventlogger-async support. */
++ #undef HAVE_RTCOM_EVENTLOGGER_ASYNC
 + 
   /* Define to the sub-directory in which libtool stores uninstalled libraries.
   #undef LT_OBJDIR
      */
 diff -cr configure configure
-*** configure	Sun Jul 22 13:04:35 2012
---- configure	Sun Jul 22 13:05:58 2012
+*** configure	Tue Aug  7 18:58:13 2012
+--- configure	Tue Aug  7 18:58:37 2012
 ***************
 *** 659,664 ****
 --- 659,666 ----
   MESSAGES_DRIVER
   BLUEZ_LIBS
   BLUEZ_CFLAGS
-+ RTCOM_EVENTLOGGER_LIBS
-+ RTCOM_EVENTLOGGER_CFLAGS
++ RTCOM_EVENTLOGGER_ASYNC_LIBS
++ RTCOM_EVENTLOGGER_ASYNC_CFLAGS
   DBUS_LIBS
   DBUS_CFLAGS
   GLIB_LIBS
@@ -105,8 +105,8 @@ diff -cr configure configure
   EBOOK_LIBS
   GTHREAD_CFLAGS
   GTHREAD_LIBS
-+ RTCOM_EVENTLOGGER_CFLAGS
-+ RTCOM_EVENTLOGGER_LIBS
++ RTCOM_EVENTLOGGER_ASYNC_CFLAGS
++ RTCOM_EVENTLOGGER_ASYNC_LIBS
   TRACKER_09_CFLAGS
   TRACKER_09_LIBS
   TRACKER_10_CFLAGS
@@ -128,10 +128,10 @@ diff -cr configure configure
                 C compiler flags for GTHREAD, overriding pkg-config
     GTHREAD_LIBS
                 linker flags for GTHREAD, overriding pkg-config
-+   RTCOM_EVENTLOGGER_CFLAGS
-+               C compiler flags for RTCOM_EVENTLOGGER, overriding pkg-config
-+   RTCOM_EVENTLOGGER_LIBS
-+               linker flags for RTCOM_EVENTLOGGER, overriding pkg-config
++   RTCOM_EVENTLOGGER_ASYNC_CFLAGS
++               C compiler flags for RTCOM_EVENTLOGGER_ASYNC, overriding pkg-config
++   RTCOM_EVENTLOGGER_ASYNC_LIBS
++               linker flags for RTCOM_EVENTLOGGER_ASYNC, overriding pkg-config
     TRACKER_09_CFLAGS
                 C compiler flags for TRACKER_09, overriding pkg-config
     TRACKER_09_LIBS
@@ -151,19 +151,19 @@ diff -cr configure configure
 + 	if (test "x${with_rtcomeventlogger}" != "xno"); then
 + 
 + pkg_failed=no
-+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking for RTCOM_EVENTLOGGER" >&5
-+ $as_echo_n "checking for RTCOM_EVENTLOGGER... " >&6; }
++ { $as_echo "$as_me:${as_lineno-$LINENO}: checking for RTCOM_EVENTLOGGER_ASYNC" >&5
++ $as_echo_n "checking for RTCOM_EVENTLOGGER_ASYNC... " >&6; }
 + 
-+ if test -n "$RTCOM_EVENTLOGGER_CFLAGS"; then
-+     pkg_cv_RTCOM_EVENTLOGGER_CFLAGS="$RTCOM_EVENTLOGGER_CFLAGS"
++ if test -n "$RTCOM_EVENTLOGGER_ASYNC_CFLAGS"; then
++     pkg_cv_RTCOM_EVENTLOGGER_CFLAGS="$RTCOM_EVENTLOGGER_ASYNC_CFLAGS"
 +   elif test -n "$PKG_CONFIG"; then
 +     if test -n "$PKG_CONFIG" && \
-+     { { $as_echo "$as_me:${as_lineno-$LINENO}: \$PKG_CONFIG --exists --print-errors \"rtcom-eventlogger\""; } >&5
-+   ($PKG_CONFIG --exists --print-errors "rtcom-eventlogger") 2>&5
++     { { $as_echo "$as_me:${as_lineno-$LINENO}: \$PKG_CONFIG --exists --print-errors \"rtcom-eventlogger-async\""; } >&5
++   ($PKG_CONFIG --exists --print-errors "rtcom-eventlogger-async") 2>&5
 +   ac_status=$?
 +   $as_echo "$as_me:${as_lineno-$LINENO}: \$? = $ac_status" >&5
 +   test $ac_status = 0; }; then
-+   pkg_cv_RTCOM_EVENTLOGGER_CFLAGS=`$PKG_CONFIG --cflags "rtcom-eventlogger" 2>/dev/null`
++   pkg_cv_RTCOM_EVENTLOGGER_ASYNC_CFLAGS=`$PKG_CONFIG --cflags "rtcom-eventlogger-async" 2>/dev/null`
 + 		      test "x$?" != "x0" && pkg_failed=yes
 + else
 +   pkg_failed=yes
@@ -171,16 +171,16 @@ diff -cr configure configure
 +  else
 +     pkg_failed=untried
 + fi
-+ if test -n "$RTCOM_EVENTLOGGER_LIBS"; then
-+     pkg_cv_RTCOM_EVENTLOGGER_LIBS="$RTCOM_EVENTLOGGER_LIBS"
++ if test -n "$RTCOM_EVENTLOGGER_ASYNC_LIBS"; then
++     pkg_cv_RTCOM_EVENTLOGGER_ASYNC_LIBS="$RTCOM_EVENTLOGGER_ASYNC_LIBS"
 +  elif test -n "$PKG_CONFIG"; then
 +     if test -n "$PKG_CONFIG" && \
-+     { { $as_echo "$as_me:${as_lineno-$LINENO}: \$PKG_CONFIG --exists --print-errors \"rtcom-eventlogger\""; } >&5
-+   ($PKG_CONFIG --exists --print-errors "rtcom-eventlogger") 2>&5
++     { { $as_echo "$as_me:${as_lineno-$LINENO}: \$PKG_CONFIG --exists --print-errors \"rtcom-eventlogger-async\""; } >&5
++   ($PKG_CONFIG --exists --print-errors "rtcom-eventlogger-async") 2>&5
 +   ac_status=$?
 +   $as_echo "$as_me:${as_lineno-$LINENO}: \$? = $ac_status" >&5
 +   test $ac_status = 0; }; then
-+   pkg_cv_RTCOM_EVENTLOGGER_LIBS=`$PKG_CONFIG --libs "rtcom-eventlogger" 2>/dev/null`
++   pkg_cv_RTCOM_EVENTLOGGER_ASYNC_LIBS=`$PKG_CONFIG --libs "rtcom-eventlogger-async" 2>/dev/null`
 + 		      test "x$?" != "x0" && pkg_failed=yes
 + else
 +   pkg_failed=yes
@@ -199,43 +199,43 @@ diff -cr configure configure
 +         _pkg_short_errors_supported=no
 + fi
 +         if test $_pkg_short_errors_supported = yes; then
-+ 	        RTCOM_EVENTLOGGER_PKG_ERRORS=`$PKG_CONFIG --short-errors --print-errors --cflags --libs "rtcom-eventlogger" 2>&1`
++ 	        RTCOM_EVENTLOGGER_ASYNC_PKG_ERRORS=`$PKG_CONFIG --short-errors --print-errors --cflags --libs "rtcom-eventlogger-async" 2>&1`
 +         else
-+ 	        RTCOM_EVENTLOGGER_PKG_ERRORS=`$PKG_CONFIG --print-errors --cflags --libs "rtcom-eventlogger" 2>&1`
++ 	        RTCOM_EVENTLOGGER_ASYNC_PKG_ERRORS=`$PKG_CONFIG --print-errors --cflags --libs "rtcom-eventlogger-async" 2>&1`
 +         fi
 + 	# Put the nasty error message in config.log where it belongs
-+ 	echo "$RTCOM_EVENTLOGGER_PKG_ERRORS" >&5
++ 	echo "$RTCOM_EVENTLOGGER_ASYNC_PKG_ERRORS" >&5
 + 
 +    	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
 + $as_echo "no" >&6; }
-+           HAVE_RTCOM_EVENTLOGGER="no"
++           HAVE_RTCOM_EVENTLOGGER_ASYNC="no"
 + elif test $pkg_failed = untried; then
-+ 	HAVE_RTCOM_EVENTLOGGER="no"
++ 	HAVE_RTCOM_EVENTLOGGER_ASYNC="no"
 + else
-+ 	RTCOM_EVENTLOGGER_CFLAGS=$pkg_cv_RTCOM_EVENTLOGGER_CFLAGS
-+ 	RTCOM_EVENTLOGGER_LIBS=$pkg_cv_RTCOM_EVENTLOGGER_LIBS
++ 	RTCOM_EVENTLOGGER_ASYNC_CFLAGS=$pkg_cv_RTCOM_EVENTLOGGER_ASYNC_CFLAGS
++ 	RTCOM_EVENTLOGGER_ASYNC_LIBS=$pkg_cv_RTCOM_EVENTLOGGER_ASYNC_LIBS
 + 	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
 + $as_echo "yes" >&6; }
-+ 	HAVE_RTCOM_EVENTLOGGER="yes"
++ 	HAVE_RTCOM_EVENTLOGGER_ASYNC="yes"
 + fi
 + 
-+ 		if (test "x${HAVE_RTCOM_EVENTLOGGER}" = "xyes"); then
++ 		if (test "x${HAVE_RTCOM_EVENTLOGGER_ASYNC}" = "xyes"); then
 + 
 + cat >>confdefs.h <<\_ACEOF
-+ #define HAVE_RTCOM_EVENTLOGGER 1
++ #define HAVE_RTCOM_EVENTLOGGER_ASYNC 1
 + _ACEOF
 + 
 + 
 + 
 + 		else
-+ 			{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $HAVE_RTCOM_EVENTLOGGER" >&5
-+ $as_echo "$HAVE_RTCOM_EVENTLOGGER" >&6; }
++ 			{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $HAVE_RTCOM_EVENTLOGGER_ASYNC" >&5
++ $as_echo "$HAVE_RTCOM_EVENTLOGGER_ASYNC" >&6; }
 + 			if (test "x$with_rtcomeventlogger" = "xyes"); then
-+ 				as_fn_error $? "rtcom-eventlogger is required" "$LINENO" 5
++ 				as_fn_error $? "rtcom-eventlogger-async is required" "$LINENO" 5
 + 			fi
 + 		fi
 + 	else
-+ 		HAVE_RTCOM_EVENTLOGGER=no;
++ 		HAVE_RTCOM_EVENTLOGGER_ASYNC=no;
 + 	fi
 + 
 + 
@@ -244,8 +244,8 @@ diff -cr configure configure
   
   if (test "${phonebook_driver}" = "tracker"); then
 diff -cr configure.ac configure.ac
-*** configure.ac	Sun Jul 22 13:04:35 2012
---- configure.ac	Sun Jul 22 13:05:58 2012
+*** configure.ac	Tue Aug  7 18:58:13 2012
+--- configure.ac	Tue Aug  7 18:58:37 2012
 ***************
 *** 151,156 ****
 --- 151,176 ----
@@ -253,41 +253,40 @@ diff -cr configure.ac configure.ac
   	AC_SUBST(GTHREAD_CFLAGS)
   	AC_SUBST(GTHREAD_LIBS)
 + 
-+ 	AC_ARG_WITH(rtcom-eventlogger, AC_HELP_STRING([--with-rtcom-eventlogger=yes|no], [Build with rtcom-eventlogger support in ebook plugin (Maemo call history)]),
++ 	AC_ARG_WITH(rtcom-eventlogger, AC_HELP_STRING([--with-rtcom-eventlogger=yes|no], [Build with rtcom-eventlogger-async support in ebook plugin (Maemo call history)]),
 + 		    [ with_rtcomeventlogger=${withval} ])
 + 	if (test "x${with_rtcomeventlogger}" != "xno"); then
-+ 		PKG_CHECK_MODULES(RTCOM_EVENTLOGGER, rtcom-eventlogger,
-+ 			HAVE_RTCOM_EVENTLOGGER="yes",
-+ 			HAVE_RTCOM_EVENTLOGGER="no")
-+ 		if (test "x${HAVE_RTCOM_EVENTLOGGER}" = "xyes"); then
-+ 			AC_DEFINE(HAVE_RTCOM_EVENTLOGGER, 1, [Define to 1 if you want rtcom-eventlogger support.])
-+ 			AC_SUBST(RTCOM_EVENTLOGGER_CFLAGS)
-+ 			AC_SUBST(RTCOM_EVENTLOGGER_LIBS)
++ 		PKG_CHECK_MODULES(RTCOM_EVENTLOGGER_ASYNC, rtcom-eventlogger-async,
++ 			HAVE_RTCOM_EVENTLOGGER_ASYNC="yes",
++ 			HAVE_RTCOM_EVENTLOGGER_ASYNC="no")
++ 		if (test "x${HAVE_RTCOM_EVENTLOGGER_ASYNC}" = "xyes"); then
++ 			AC_DEFINE(HAVE_RTCOM_EVENTLOGGER_ASYNC, 1, [Define to 1 if you want rtcom-eventlogger-async support.])
++ 			AC_SUBST(RTCOM_EVENTLOGGER_ASYNC_CFLAGS)
++ 			AC_SUBST(RTCOM_EVENTLOGGER_ASYNC_LIBS)
 + 		else
-+ 			AC_MSG_RESULT($HAVE_RTCOM_EVENTLOGGER)
++ 			AC_MSG_RESULT($HAVE_RTCOM_EVENTLOGGER_ASYNC)
 + 			if (test "x$with_rtcomeventlogger" = "xyes"); then
-+ 				AC_MSG_ERROR(rtcom-eventlogger is required))
++ 				AC_MSG_ERROR(rtcom-eventlogger-async is required))
 + 			fi
 + 		fi
 + 	else
-+ 		HAVE_RTCOM_EVENTLOGGER=no;
++ 		HAVE_RTCOM_EVENTLOGGER_ASYNC=no;
 + 	fi
   fi
   
   if (test "${phonebook_driver}" = "tracker"); then
 diff -cr plugins/phonebook-ebook.c plugins/phonebook-ebook.c
-*** plugins/phonebook-ebook.c	Sun Jul 22 13:05:10 2012
---- plugins/phonebook-ebook.c	Sun Jul 22 13:17:39 2012
+*** plugins/phonebook-ebook.c	Tue Aug  7 18:58:24 2012
+--- plugins/phonebook-ebook.c	Tue Aug  7 20:29:09 2012
 ***************
 *** 33,44 ****
---- 33,62 ----
+--- 33,63 ----
   
   #include <libebook/e-book.h>
   
-+ #ifdef HAVE_RTCOM_EVENTLOGGER
++ #ifdef HAVE_RTCOM_EVENTLOGGER_ASYNC
 + #include <time.h>
-+ /* #include <libebook/e-vcard.h> */
-+ #include <rtcom-eventlogger/eventlogger.h>
++ #include <rtcom-eventlogger/eventlogger-async.h>
 + #endif
 + 
   #include "log.h"
@@ -296,6 +295,7 @@ diff -cr plugins/phonebook-ebook.c plugins/phonebook-ebook.c
   #include "phonebook.h"
   #include "glib-helper.h"
   
++ #ifdef HAVE_RTCOM_EVENTLOGGER_ASYNC
 + #define PB_PHONEBOOK		1
 + #define PB_INCOMING_CALLS	17
 + #define PB_OUTGOING_CALLS	18
@@ -307,30 +307,18 @@ diff -cr plugins/phonebook-ebook.c plugins/phonebook-ebook.c
 + #define PB_TYPE_CALLS		16
 + 
 + #define PB_STORAGE_SIM		128
++ #endif
 + 
   #define MY_VCARD_21 "BEGIN:VCARD\r\n\
   VERSION:2.1\r\n\
   N:;;;;\r\n\
 ***************
-*** 54,60 ****
---- 72,93 ----
-  #define QUERY_NAME "(contains \"given_name\" \"%s\")"
+*** 55,60 ****
+--- 74,82 ----
   #define QUERY_PHONE "(contains \"phone\" \"%s\")"
   
-+ #ifdef HAVE_RTCOM_EVENTLOGGER
-+ #define RTCOM_EL_PREPARE(_el, _query, ...)			\
-+ 	_el = rtcom_el_new();					\
-+ 	if (!RTCOM_IS_EL(_el))					\
-+ 		goto fail;					\
-+ 	_query = rtcom_el_query_new(_el);			\
-+ 	if (!RTCOM_IS_EL_QUERY(_query))				\
-+ 		goto fail_el;					\
-+ 	if (!rtcom_el_query_prepare(_query, __VA_ARGS__))	\
-+ 		goto fail_el_query;
-+ #endif
-+ 
   struct query_context {
-+ #ifdef HAVE_RTCOM_EVENTLOGGER
++ #ifdef HAVE_RTCOM_EVENTLOGGER_ASYNC
 + 	int type;
 + #endif
   	const struct apparam_field *params;
@@ -338,13 +326,12 @@ diff -cr plugins/phonebook-ebook.c plugins/phonebook-ebook.c
   	phonebook_entry_cb entry_cb;
 ***************
 *** 67,72 ****
---- 100,109 ----
+--- 89,97 ----
   	void *user_data;
   	GSList *ebooks;
   	gboolean canceled;
-+ #ifdef HAVE_RTCOM_EVENTLOGGER
-+ 	RTComEl *el;
-+ 	RTComElQuery *el_query;
++ #ifdef HAVE_RTCOM_EVENTLOGGER_ASYNC
++ 	char *el_query;
 + #endif
   };
   
@@ -358,26 +345,25 @@ diff -cr plugins/phonebook-ebook.c plugins/phonebook-ebook.c
   
   	g_free(data);
   }
---- 155,170 ----
+--- 143,157 ----
   	if (data->query != NULL)
   		e_book_query_unref(data->query);
   
 ! 	if (data->ebooks != NULL)
 ! 		close_ebooks(data->ebooks);
 ! 
-! #ifdef HAVE_RTCOM_EVENTLOGGER
-! 	if (data->el != NULL)
-! 		g_object_unref(data->el);
-! 
+! #if 0 /* used local strings - no need to free */
+! #ifdef HAVE_RTCOM_EVENTLOGGER_ASYNC
 ! 	if (data->el_query != NULL)
-! 		g_object_unref(data->el_query);
+! 		g_free(data->el_query);
+! #endif
 ! #endif
   
   	g_free(data);
   }
 ***************
 *** 216,221 ****
---- 262,278 ----
+--- 249,265 ----
   	return vcard;
   }
   
@@ -404,12 +390,12 @@ diff -cr plugins/phonebook-ebook.c plugins/phonebook-ebook.c
   		EBook *eb;
   		EContact *contact = NULL;
   		GError *gerr = NULL;
---- 303,313 ----
+--- 290,300 ----
   		goto done;
   	}
   
 ! 	if (!data->params->liststartoffset && !*data->buf->str
-! #ifdef HAVE_RTCOM_EVENTLOGGER
+! #ifdef HAVE_RTCOM_EVENTLOGGER_ASYNC
 ! 	    && data->type == PB_PHONEBOOK
 ! #endif
 ! 	    ) {
@@ -424,31 +410,323 @@ diff -cr plugins/phonebook-ebook.c plugins/phonebook-ebook.c
 ! 	if (data->queued_calls == 0) {
 ! 		GString *buf = data->buf;
 ! 		data->buf = NULL;
-! 
+  
 ! 		data->contacts_cb(buf->str, buf->len, data->count,
 ! 						0, TRUE, data->user_data);
-! 
+  
 ! 		g_string_free(buf, TRUE);
-! 
-! 	}
+  
+  	}
   
   	return;
   
---- 361,368 ----
+--- 348,510 ----
   	g_list_free_full(contacts, g_object_unref);
   
   done:
 ! 	if (data->queued_calls == 0)
 ! 		ebookpull_notify_data_cb(data, data->count);
+! 
+! 	return;
+! 
+! canceled:
+! 	if (data->queued_calls == 0)
+! 		free_query_context(data);
+! }
+  
+! #ifdef HAVE_RTCOM_EVENTLOGGER_ASYNC
+! char *rtcom_row_to_vcard(struct query_context *data, GArray *intvals, char **strvals)
+! {
+! 	gchar *rebuid, *rname, *ruid;
+! 	gint id, direction, type;
+! 	time_t stime;
+! 
+! 	gboolean has_name;
+! 	gchar str[24];
+! 	const struct tm *tm = NULL;
+! 	gchar *vcard;
+! 
+! 	EVCard *evc;
+! 	EVCardAttribute *attr;
+! 	EVCardAttributeParam *param;
+  
+! 	if (intvals == NULL || intvals->len != 4 ||
+! 	    strvals == NULL || g_strv_length(strvals) != 3)
+! 		return NULL;
+  
++ 	/* intvals */
++ 	type  = g_array_index(intvals, gint, 0);
++ 	id    = g_array_index(intvals, gint, 1);
++ 	stime = g_array_index(intvals, time_t, 2);
++ 	direction = g_array_index(intvals, gint, 3);
++ 	/* strvals */
++ 	rebuid = strvals[0];
++ 	ruid   = strvals[1];
++ 	rname  = strvals[2];
++ 
++ 	/* Create and dump vcard */
++ 	evc = e_vcard_new();
++ 	attr = e_vcard_attribute_new(NULL, EVC_N);
++ 	has_name = g_strcmp0(rname, ruid) != 0;
++ 	if (has_name)
++ 		e_vcard_add_attribute_with_value(evc, attr, rname);
++ 	else
++ 		e_vcard_add_attribute_with_values(evc, attr, "", "", "", "", "", NULL);
++ 	if (data->params->format == EVC_FORMAT_VCARD_30) {
++ 		attr = e_vcard_attribute_new(NULL, EVC_FN);
++ 		if (has_name)
++ 			e_vcard_add_attribute_with_value(evc, attr, rname);
++ 		else
++ 			e_vcard_add_attribute_with_value(evc, attr, "");
++ 	}
++ 	attr = e_vcard_attribute_new(NULL, EVC_TEL);
++ 	e_vcard_add_attribute_with_value(evc, attr, ruid);
++ 	attr = e_vcard_attribute_new(NULL, "X-IRMC-CALL-DATETIME");
++ 	if (type == 1) {		/* RTCOM_EL_EVENTTYPE_CALL */
++ 		if (direction >= 0) {
++ 			if (direction == 0)
++ 				param = e_vcard_attribute_param_new("RECEIVED");
++ 			else
++ 				param = e_vcard_attribute_param_new("DIALED");
++ 			e_vcard_attribute_add_param(attr, param);
++ 		}
++ 	} else if (type == 2) {		/* RTCOM_EL_EVENTTYPE_CALL_MISSED */
++ 		param = e_vcard_attribute_param_new("MISSED");
++ 		e_vcard_attribute_add_param(attr, param);
++ 	}
++ 	tm = localtime(&stime);
++ 	if (tm && strftime(str, 24, "%Y%m%dT%H%M%S", tm) > 0)
++ 		e_vcard_add_attribute_with_value(evc, attr, str);
++ 	else
++ 		e_vcard_add_attribute(evc, attr);
++ 	if (snprintf(str, 24, "%d", id) > 0) {
++ 		attr = e_vcard_attribute_new(NULL, EVC_UID);
++ 		e_vcard_add_attribute_with_value(evc, attr, str);
+  	}
++ 	attr = e_vcard_attribute_new(NULL, "X-EBOOK-UID");
++ 	e_vcard_add_attribute_with_value(evc, attr, rebuid);
++ 
++ 	vcard = evcard_to_string(evc, data->params->format, data->params->filter);
++ 	g_object_unref(evc);
++ 
++ 	return vcard;
++ }
++ 
++ static void rtcompullcount_cb(guint count, GError *gerr, gpointer user_data)
++ {
++ 	struct query_context *data = user_data;
++ 
++ 	data->queued_calls--;
++ 
++ 	if (data->canceled)
++ 		goto canceled;
++ 
++ 	if (gerr != NULL) {
++ 		error("RTCOM query count failed: %s", gerr->message);
++ 		goto done;
++ 	}
++ 
++ 	data->count += count;
++ 
++ done:
++ 	if (data->queued_calls == 0)
++ 		ebookpull_notify_data_cb(data, data->count);
++ 
++ 	return;
++ 
++ canceled:
++ 	if (data->queued_calls == 0)
++ 		free_query_context(data);
++ }
++ 
++ static void rtcompull_cb(GPtrArray *inttable, GPtrArray *strtable, GError *gerr, gpointer user_data)
++ {
++ 	struct query_context *data = user_data;
++ 	unsigned int count, index;
++ 
++ 	data->queued_calls--;
++ 
++ 	if (data->canceled)
++ 		goto canceled;
++ 
++ 	if (gerr!= NULL) {
++ 		error("RTCOM query failed: %s", gerr->message);
++ 		goto done;
++ 	}
++ 	if (inttable == NULL || strtable == NULL || inttable->len != strtable->len) {
++ 		error("RTCOM query failed: different count of inttable and strtable records");
++ 		goto done;
++ 	}
++ 
++ 	DBG("");
++ 
++ 	for (count = 0, index = 0;
++ 	     index < inttable->len && count + data->count < data->params->maxlistcount;
++ 	     index++) {
++ 		char *vcard = rtcom_row_to_vcard(data,
++ 					(GArray *) g_ptr_array_index(inttable, index),
++ 					(char **)  g_ptr_array_index(strtable, index));
++ 		if (vcard != NULL) {
++ 			data->buf = g_string_append(data->buf, vcard);
++ 			data->buf = g_string_append(data->buf, "\r\n");
++ 			g_free(vcard);
++ 			++count;
++ 		}
++ 	}
++ 
++ 	DBG("collected %d vcards", count);
++ 
++ 	data->count += count;
++ 
++ done:
++ 	if (data->queued_calls == 0)
++ 		ebookpull_notify_data_cb(data, data->count);
   
   	return;
   
 ***************
+*** 317,322 ****
+--- 512,518 ----
+  	if (data->queued_calls == 0)
+  		free_query_context(data);
+  }
++ #endif
+  
+  static void ebook_entry_cb(EBook *book, EBookStatus estatus,
+  				EContact *contact, void *user_data)
+***************
+*** 363,368 ****
+--- 559,606 ----
+  	}
+  }
+  
++ #ifdef HAVE_RTCOM_EVENTLOGGER_ASYNC
++ static void rtcom_entry_cb(GArray *intvals, char **strvals,
++ 			GError *gerr, gpointer user_data)
++ {
++ 	struct query_context *data = user_data;
++ 	char *vcard;
++ 
++ 	data->queued_calls--;
++ 
++ 	if (data->canceled)
++ 		goto done;
++ 
++ 	if (gerr != NULL) {
++ 		error("RTCOM entry failed: %s", gerr->message);
++ 		goto done;
++ 	}
++ 
++ 	DBG("");
++ 
++ 	if ((vcard = rtcom_row_to_vcard(data, intvals, strvals)) == NULL) {
++ 		error("RTCOM entry failed: invalid arguments");
++ 		goto done;
++ 	}
++ 
++ 	data->count++;
++ 	data->contacts_cb(vcard, strlen(vcard), 1, 0, TRUE, data->user_data);
++ 
++ 	g_free(vcard);
++ 
++ 	return;
++ 
++ done:
++ 	if (data->queued_calls == 0) {
++ 		if (data->count == 0)
++ 			data->contacts_cb(NULL, 0, 1, 0, TRUE,
++ 						data->user_data);
++ 		else if (data->canceled)
++ 			free_query_context(data);
++ 	}
++ }
++ #endif
++ 
+  static char *evcard_name_attribute_to_string(EVCard *evcard)
+  {
+  	EVCardAttribute *attrib;
+***************
+*** 393,399 ****
+  	return g_string_free(name, FALSE);
+  }
+  
+! static void cache_cb(EBook *book, EBookStatus estatus, GList *contacts,
+  							void *user_data)
+  {
+  	struct query_context *data = user_data;
+--- 631,637 ----
+  	return g_string_free(name, FALSE);
+  }
+  
+! static void ebook_cache_cb(EBook *book, EBookStatus estatus, GList *contacts,
+  							void *user_data)
+  {
+  	struct query_context *data = user_data;
+***************
 *** 456,461 ****
---- 509,694 ----
+--- 694,834 ----
   		free_query_context(data);
   }
   
++ #ifdef HAVE_RTCOM_EVENTLOGGER_ASYNC
++ static void rtcom_cache_cb(GPtrArray *inttable, GPtrArray *strtable, GError *gerr,
++ 							gpointer user_data)
++ {
++ 	struct query_context *data = user_data;
++ 	guint index;
++ 
++ 	data->queued_calls--;
++ 
++ 	if (data->canceled)
++ 		goto canceled;
++ 
++ 	if (gerr != NULL) {
++ 		error("RTCOM query failed: %s", gerr->message);
++ 		goto done;
++ 	}
++ 	if (inttable == NULL || strtable == NULL || inttable->len != strtable->len) {
++ 		error("RTCOM query failed: different count of inttable and strtable records");
++ 		goto done;
++ 	}
++ 
++ 	DBG("");
++ 
++ 	for (index = 0; index < inttable->len; index++) {
++ 		GArray *intvals = (GArray *) g_ptr_array_index(inttable, index);
++ 		char **strvals = (char **) g_ptr_array_index(strtable, index);
++ 		char uid[24], *tel, *name;
++ 		gint id;
++ 
++ 		if (intvals == NULL || intvals->len != 1 ||
++ 		    strvals == NULL || g_strv_length(strvals) != 2)
++ 			continue;
++ 
++ 		id = g_array_index(intvals, gint, 0);
++ 		if (snprintf(uid, 24, "%d", id) <= 0)
++ 			continue;
++ 
++ 		tel = strvals[0];
++ 		name = strvals[1];
++ 		if (name == NULL)
++ 			name = tel;
++ 
++ 		data->entry_cb(uid, PHONEBOOK_INVALID_HANDLE, name, NULL,
++ 							tel, data->user_data);
++ 
++ 	}
++ 
++ done:
++ 	if (data->queued_calls == 0)
++ 		data->ready_cb(data->user_data);
++ 
++ 	return;
++ 
++ canceled:
++ 	if (data->queued_calls == 0)
++ 		free_query_context(data);
++ }
++ #endif
++ 
 + gboolean init_data_from_path(struct query_context *data, const gchar *path,
 + 					const gchar *suffix, gboolean all)
 + {
@@ -477,36 +755,28 @@ diff -cr plugins/phonebook-ebook.c plugins/phonebook-ebook.c
 + 		if (g_strcmp0("pb", pbtype) == 0) {
 + 			if (all)
 + 				data->query = e_book_query_any_field_contains("");
-+ #ifdef HAVE_RTCOM_EVENTLOGGER
++ #ifdef HAVE_RTCOM_EVENTLOGGER_ASYNC
 + 			data->type = PB_PHONEBOOK;
 + 		} else if (g_strcmp0("ich", pbtype) == 0) {
-+ 			RTCOM_EL_PREPARE(data->el, data->el_query,
-+ 				"service", "RTCOM_EL_SERVICE_CALL", RTCOM_EL_OP_EQUAL,
-+ 				"local-uid", "ring/tel/ring", RTCOM_EL_OP_EQUAL,
-+ 				"event-type", "RTCOM_EL_EVENTTYPE_CALL", RTCOM_EL_OP_EQUAL,
-+ 				"outgoing", 0, RTCOM_EL_OP_EQUAL,
-+ 				NULL);
++ 			data->el_query = "service-id;1;0"		\
++ 				";local-uid;\"ring/tel/ring\";0"	\
++ 				";event-type-id;1;0"			\
++ 				";outgoing;0;0";
 + 			data->type = PB_INCOMING_CALLS;
 + 		} else if (g_strcmp0("och", pbtype) == 0) {
-+ 			RTCOM_EL_PREPARE(data->el, data->el_query,
-+ 				"service", "RTCOM_EL_SERVICE_CALL", RTCOM_EL_OP_EQUAL,
-+ 				"local-uid", "ring/tel/ring", RTCOM_EL_OP_EQUAL,
-+ 				"event-type", "RTCOM_EL_EVENTTYPE_CALL", RTCOM_EL_OP_EQUAL,
-+ 				"outgoing", 1, RTCOM_EL_OP_EQUAL,
-+ 				NULL);
++ 			data->el_query = "service-id;1;0"		\
++ 				";local-uid;\"ring/tel/ring\";0"	\
++ 				";event-type-id;1;0"			\
++ 				";outgoing;1;0";
 + 			data->type = PB_OUTGOING_CALLS;
 + 		} else if (g_strcmp0("mch", pbtype) == 0) {
-+ 			RTCOM_EL_PREPARE(data->el, data->el_query,
-+ 				"service", "RTCOM_EL_SERVICE_CALL", RTCOM_EL_OP_EQUAL,
-+ 				"local-uid", "ring/tel/ring", RTCOM_EL_OP_EQUAL,
-+ 				"event-type", "RTCOM_EL_EVENTTYPE_CALL_MISSED", RTCOM_EL_OP_EQUAL,
-+ 				NULL);
++ 			data->el_query = "service-id;1;0"		\
++ 				";local-uid;\"ring/tel/ring\";0"	\
++ 				";event-type-id;2;0";
 + 			data->type = PB_MISSED_CALLS;
 + 		} else if (g_strcmp0("cch", pbtype) == 0) {
-+ 			RTCOM_EL_PREPARE(data->el, data->el_query,
-+ 				"service", "RTCOM_EL_SERVICE_CALL", RTCOM_EL_OP_EQUAL,
-+ 				"local-uid", "ring/tel/ring", RTCOM_EL_OP_EQUAL,
-+ 				NULL);
++ 			data->el_query = "service-id;1;0"		\
++ 				";local-uid;\"ring/tel/ring\";0";
 + 			data->type = PB_ALL_CALLS;
 + #endif
 + 		} else {
@@ -516,7 +786,7 @@ diff -cr plugins/phonebook-ebook.c plugins/phonebook-ebook.c
 + 		if (suffixlen)
 + 			g_free(pbtype);
 + 	} else if (strncmp("/SIM", pbtype, 4) == 0) {
-+ #ifdef HAVE_RTCOM_EVENTLOGGER
++ #ifdef HAVE_RTCOM_EVENTLOGGER_ASYNC
 + 		data->type = PB_STORAGE_SIM + PB_PHONEBOOK;
 + #endif
 + 		data->query = e_book_query_any_field_contains("XX-EMPTY-XX");
@@ -526,16 +796,6 @@ diff -cr plugins/phonebook-ebook.c plugins/phonebook-ebook.c
 + 
 + 	return TRUE;
 + 
-+ #ifdef HAVE_RTCOM_EVENTLOGGER
-+ fail_el_query:
-+ 	g_object_unref(data->el_query);
-+ 	data->el_query = NULL;
-+ 
-+ fail_el:
-+ 	g_object_unref(data->el);
-+ 	data->el = NULL;
-+ #endif
-+ 
 + fail:
 + 	if (suffixlen)
 + 		g_free(pbtype);
@@ -543,98 +803,12 @@ diff -cr plugins/phonebook-ebook.c plugins/phonebook-ebook.c
 + 	return FALSE;
 + }
 + 
-+ #ifdef HAVE_RTCOM_EVENTLOGGER
-+ RTComElIter *rtcom_get_iter(RTComEl *el, RTComElQuery *el_query,
-+ 					gint offset, gint limit)
-+ {
-+ 	DBG("offset %d limit %d", offset, limit);
-+ 
-+ 	rtcom_el_query_set_offset(el_query, offset);
-+ 	rtcom_el_query_set_limit(el_query, limit);
-+ 	rtcom_el_query_refresh(el_query);
-+ 
-+ 	return rtcom_el_get_events(el, el_query);
-+ }
-+ 
-+ gboolean rtcom_add_iter_vcard(struct query_context *data, RTComElIter *iter)
-+ {
-+ 	const gchar *type = NULL, *ruid = NULL, *rname = NULL;
-+ 	const gchar *rebuid = NULL;
-+ 	gint direction = -1;
-+ 	time_t stime = -1, etime = -1;
-+ 
-+ 	gboolean has_name;
-+ 	gchar datetime[24];
-+ 	const struct tm *tm = NULL;
-+ 	gchar *vcard;
-+ 
-+ 	EVCard *evc;
-+ 	EVCardAttribute *attr;
-+ 	EVCardAttributeParam *param;
-+ 
-+ 	if (! rtcom_el_iter_get_values(iter,
-+ 	    "event-type", &type, "remote-uid", &ruid,
-+ 	    "remote-name", &rname, "remote-ebook-uid", &rebuid,
-+ 	    "outgoing", &direction, "start-time", &stime,
-+ 	    "end-time", &etime, NULL))
-+ 		return FALSE;
-+ 
-+ 	/* Create and dump vcard */
-+ 	evc = e_vcard_new();
-+ 	attr = e_vcard_attribute_new(NULL, EVC_N);
-+ 	has_name = g_strcmp0(rname, ruid) != 0;
-+ 	if (has_name)
-+ 		e_vcard_add_attribute_with_value(evc, attr, rname);
-+ 	else
-+ 		e_vcard_add_attribute_with_values(evc, attr, "", "", "", "", "", NULL);
-+ 	if (data->params->format == EVC_FORMAT_VCARD_30) {
-+ 		attr = e_vcard_attribute_new(NULL, EVC_FN);
-+ 		if (has_name)
-+ 			e_vcard_add_attribute_with_value(evc, attr, rname);
-+ 		else
-+ 			e_vcard_add_attribute_with_value(evc, attr, "");
-+ 	}
-+ 	attr = e_vcard_attribute_new(NULL, EVC_TEL);
-+ 	e_vcard_add_attribute_with_value(evc, attr, ruid);
-+ 	attr = e_vcard_attribute_new(NULL, "X-IRMC-CALL-DATETIME");
-+ 	if (g_strcmp0(type, "RTCOM_EL_EVENTTYPE_CALL") == 0) {
-+ 		if (direction >= 0) {
-+ 			if (direction == 0)
-+ 				param = e_vcard_attribute_param_new("RECEIVED");
-+ 			else
-+ 				param = e_vcard_attribute_param_new("DIALED");
-+ 			e_vcard_attribute_add_param(attr, param);
-+ 		}
-+ 	} else if (g_strcmp0(type, "RTCOM_EL_EVENTTYPE_CALL_MISSED") == 0) {
-+ 		param = e_vcard_attribute_param_new("MISSED");
-+ 		e_vcard_attribute_add_param(attr, param);
-+ 	}
-+ 	tm = localtime(&stime);
-+ 	if (tm) {
-+ 		strftime(datetime, 24, "%Y%m%dT%H%M%S", tm);
-+ 		e_vcard_add_attribute_with_value(evc, attr, datetime);
-+ 	} else {
-+ 		e_vcard_add_attribute(evc, attr);
-+ 	}
-+ 	attr = e_vcard_attribute_new(NULL, EVC_UID);
-+ 	e_vcard_add_attribute_with_value(evc, attr, rebuid);
-+ 
-+ 	vcard = evcard_to_string(evc, data->params->format, data->params->filter);
-+ 	data->buf = g_string_append(data->buf, vcard);
-+ 	data->buf = g_string_append(data->buf, "\r\n");
-+ 	g_free(vcard);
-+ 	g_object_unref(evc);
-+ 
-+ 	return TRUE;
-+ }
-+ #endif
-+ 
   gboolean add_ebook_from_uri(GSList **ebooks, EBook *ebook) {
   	GError *gerr = NULL;
   
 ***************
 *** 557,562 ****
---- 790,821 ----
+--- 930,961 ----
   {
   }
   
@@ -651,7 +825,7 @@ diff -cr plugins/phonebook-ebook.c plugins/phonebook-ebook.c
 + 			return FALSE;
 + 		++folder;
 + 		if (g_strcmp0("pb", folder) == 0
-+ #ifdef HAVE_RTCOM_EVENTLOGGER
++ #ifdef HAVE_RTCOM_EVENTLOGGER_ASYNC
 + 		    || g_strcmp0("ich", folder) == 0
 + 		    || g_strcmp0("och", folder) == 0
 + 		    || g_strcmp0("mch", folder) == 0
@@ -669,7 +843,7 @@ diff -cr plugins/phonebook-ebook.c plugins/phonebook-ebook.c
   {
 ***************
 *** 568,573 ****
---- 827,833 ----
+--- 967,973 ----
   	child = (new_folder && strlen(new_folder) != 0);
   
   	/* Evolution back-end will support telecom/pb folder only */
@@ -687,7 +861,7 @@ diff -cr plugins/phonebook-ebook.c plugins/phonebook-ebook.c
   			g_free(fullname);
   			fullname = NULL;
   			ret = -ENOENT;
---- 839,845 ----
+--- 979,985 ----
   
   		/* Go down 1 level */
   		fullname = g_build_filename(current_folder, new_folder, NULL);
@@ -705,7 +879,7 @@ diff -cr plugins/phonebook-ebook.c plugins/phonebook-ebook.c
   			g_free(fullname);
   			fullname = NULL;
   			ret = -ENOENT;
---- 878,884 ----
+--- 1018,1024 ----
   		}
   
   		fullname = g_build_filename(base, new_folder, NULL);
@@ -750,7 +924,7 @@ diff -cr plugins/phonebook-ebook.c plugins/phonebook-ebook.c
   	for (l = data->ebooks; l != NULL; l = g_slist_next(l)) {
   		EBook *ebook = l->data;
   
---- 914,951 ----
+--- 1054,1091 ----
   {
   	struct query_context *data;
   
@@ -761,14 +935,14 @@ diff -cr plugins/phonebook-ebook.c plugins/phonebook-ebook.c
   	data->params = params;
   	data->user_data = user_data;
   	data->buf = g_string_new("");
-! #ifdef HAVE_RTCOM_EVENTLOGGER
+! #ifdef HAVE_RTCOM_EVENTLOGGER_ASYNC
 ! 	if ((data->type & PB_TYPE_MASK) == PB_TYPE_BOOKS) {
 ! #endif
 ! 		data->ebooks = open_ebooks();
   
 ! 		if (data->ebooks == NULL)
 ! 			goto fail;
-! #ifdef HAVE_RTCOM_EVENTLOGGER
+! #ifdef HAVE_RTCOM_EVENTLOGGER_ASYNC
 ! 	}
 ! #endif
   
@@ -790,74 +964,52 @@ diff -cr plugins/phonebook-ebook.c plugins/phonebook-ebook.c
   		EBook *ebook = l->data;
   
 ***************
-*** 702,719 ****
+*** 702,708 ****
   	return 0;
   }
   
-! void *phonebook_get_entry(const char *folder, const char *id,
-! 				const struct apparam_field *params,
-! 				phonebook_cb cb, void *user_data, int *err)
+! static gboolean phonebook_get_entry_me(void *user_data)
   {
-! 	struct query_context *data;
-! 	GSList *l;
-  
-! 	data = g_new0(struct query_context, 1);
-! 	data->contacts_cb = cb;
-! 	data->params = params;
-! 	data->user_data = user_data;
-! 	data->id = g_strdup(id);
-  
-  	if (g_strcmp0(data->id, "0") == 0) {
-  		EBook *eb;
---- 963,1039 ----
+  	struct query_context *data = user_data;
+  	EBook *eb;
+--- 1103,1165 ----
   	return 0;
   }
   
-! #ifdef HAVE_RTCOM_EVENTLOGGER
+! #ifdef HAVE_RTCOM_EVENTLOGGER_ASYNC
 ! int rtcom_phonebook_pull_read(struct query_context *data)
-  {
-! 	RTComElIter *iter;
-! 	unsigned int count = 0, maxcount;
-  
-! 	maxcount = data->params->maxlistcount;
-! 	DBG("offset %d, maxlistcount %d", data->params->liststartoffset, maxcount);
-! 	iter = rtcom_get_iter(data->el, data->el_query,
-! 			data->params->liststartoffset, ( maxcount == 0 ? -1 :
-! 			( maxcount - data->count > 0 ?  maxcount - data->count : 1 )));
-! 	if (!RTCOM_IS_EL_ITER(iter))
-! 		return -ENOENT;
+! {
+! 	gint err;
+! 
+! 	DBG("offset %d, maxlistcount %d", data->params->liststartoffset, data->params->maxlistcount);
 ! 
 ! 	/*
 ! 	 * When MaxListCount is zero, PCE wants to know the number of used
 ! 	 * indexes in the phonebook of interest. All other parameters that
 ! 	 * may be present in the request shall be ignored.
 ! 	 */
-! 	if (maxcount == 0) {
-! 		count = 0;
-! 		if (rtcom_el_iter_first(iter)) {
-! 			++count;
-! 			while (rtcom_el_iter_next(iter))
-! 				++count;
-! 		}
-! 		data->count = count;
-! 	} else {
-! 		if (!rtcom_el_iter_first(iter)) {
-! 			g_object_unref(iter);
+! 	if (data->params->maxlistcount == 0) {
+! 		if ((err = rtcomel_get_event_list_count_async(rtcompullcount_cb, data->el_query,
+! 				data->params->liststartoffset, -1, data))) {
+! 			error("Unable to get count of call history query %s with: %d",
+! 					data->el_query, err);
 ! 			return -ENOENT;
+! 		} else {
+! 			data->queued_calls++;
 ! 		}
-! 
-! 		do {
-! 			if (rtcom_add_iter_vcard(data, iter))
-! 				++count;
-! 		} while (data->count + count < maxcount && rtcom_el_iter_next(iter));
-! 		data->count += count;
+! 	} else {
+! 		if ((err = rtcomel_get_event_list_async(rtcompull_cb, data->el_query,
+! 				"event-type-id,id,start-time,outgoing",
+! 				"remote-ebook-uid,remote-uid,remote-name",
+! 				data->params->liststartoffset, data->params->maxlistcount,
+! 				data))) {
+! 			error("Unable to get call history query %s with: %d",
+! 					data->el_query, err);
+! 			return -ENOENT;
+! 		} else {
+! 			data->queued_calls++;
+! 		}
 ! 	}
-! 
-! 	g_object_unref(iter);
-! 
-! 	DBG("calls %d/%d", count, data->count);
-! 
-! 	ebookpull_notify_data_cb(data, data-> count);
 ! 
 ! 	return 0;
 ! }
@@ -870,25 +1022,59 @@ diff -cr plugins/phonebook-ebook.c plugins/phonebook-ebook.c
 ! 	if (!data)
 ! 		return -ENOENT;
 ! 
-! #ifdef HAVE_RTCOM_EVENTLOGGER
+! #ifdef HAVE_RTCOM_EVENTLOGGER_ASYNC
 ! 	if ((data->type & PB_TYPE_MASK) == PB_TYPE_BOOKS)
 ! #endif
 ! 		return ebook_phonebook_pull_read(data);
-! #ifdef HAVE_RTCOM_EVENTLOGGER
+! #ifdef HAVE_RTCOM_EVENTLOGGER_ASYNC
 ! 	else
 ! 		return rtcom_phonebook_pull_read(data);
 ! #endif
 ! }
 ! 
+! static gboolean ebook_phonebook_get_entry_me(void *user_data)
+  {
+  	struct query_context *data = user_data;
+  	EBook *eb;
+***************
+*** 736,756 ****
+  	return TRUE;
+  }
+  
+! void *phonebook_get_entry(const char *folder, const char *id,
+! 				const struct apparam_field *params,
+! 				phonebook_cb cb, void *user_data, int *err)
+  {
+! 	struct query_context *data;
+  	GSList *l;
+  
+- 	data = g_new0(struct query_context, 1);
+- 	data->contacts_cb = cb;
+- 	data->params = params;
+- 	data->user_data = user_data;
+- 	data->id = g_strdup(id);
+- 
+  	if (g_strcmp0(data->id, "0") == 0) {
+! 		g_idle_add_full(G_PRIORITY_DEFAULT_IDLE, phonebook_get_entry_me, data, NULL);
+  	} else {
+  		data->ebooks = open_ebooks();
+  
+--- 1193,1205 ----
+  	return TRUE;
+  }
+  
 ! int ebook_phonebook_get_entry(struct query_context **user_data)
-! {
+  {
 ! 	struct query_context *data = *user_data;
-! 	GSList *l;
+  	GSList *l;
   
   	if (g_strcmp0(data->id, "0") == 0) {
-  		EBook *eb;
+! 		g_idle_add_full(G_PRIORITY_DEFAULT_IDLE, ebook_phonebook_get_entry_me, data, NULL);
+  	} else {
+  		data->ebooks = open_ebooks();
+  
 ***************
-*** 757,774 ****
+*** 765,782 ****
   				data->queued_calls++;
   		}
   
@@ -907,7 +1093,7 @@ diff -cr plugins/phonebook-ebook.c plugins/phonebook-ebook.c
   	GSList *l;
   	EContact *me;
   	EVCard *evcard;
---- 1077,1162 ----
+--- 1214,1282 ----
   				data->queued_calls++;
   		}
   
@@ -917,40 +1103,23 @@ diff -cr plugins/phonebook-ebook.c plugins/phonebook-ebook.c
 + 	return 0;
 + }
 + 
-+ #ifdef HAVE_RTCOM_EVENTLOGGER
++ #ifdef HAVE_RTCOM_EVENTLOGGER_ASYNC
 + int rtcom_phonebook_get_entry(struct query_context **user_data)
 + {
 + 	struct query_context *data = *user_data;
-+ 	RTComElIter *iter;
-+ 	int ret = -ENOENT;
++ 	gint ret;
 + 
-+ 	iter = rtcom_get_iter(data->el, data->el_query, atoi(data->id), 1);
-+ 	if (!RTCOM_IS_EL_ITER(iter))
-+ 		goto end;
-+ 
-+ 	if (!rtcom_el_iter_first(iter))
-+ 		goto end;
-+ 
-+ 	data->buf = g_string_new("");
-+ 
-+ 	if (! rtcom_add_iter_vcard(data, iter))
-+ 		goto end;
-+ 
-+ 	ret = 0;
-+ 
-+ end:
-+ 	if (iter)
-+ 		g_object_unref(iter);
-+ 
-+ 	if (ret == 0) {
-+ 		data->count++;
-+ 		ebookpull_notify_data_cb(data,1);
++ 	if ((ret = rtcomel_get_event_async(rtcom_entry_cb, atoi(data->id),
++ 				"event-type-id,id,start-time,outgoing",
++ 				"remote-ebook-uid,remote-uid,remote-name",
++ 				data))) {
++ 		error("Unable to get call history id %s with: %d", data->id, ret);
++ 		return -ENOENT;
++ 	} else {
++ 		data->queued_calls++;
 + 	}
 + 
-+ 	free_query_context(data);
-+ 	*user_data = NULL;
-+ 
-+ 	return ret;
++ 	return 0;
 + }
 + #endif
 + 
@@ -959,7 +1128,7 @@ diff -cr plugins/phonebook-ebook.c plugins/phonebook-ebook.c
 + 				phonebook_cb cb, void *user_data, int *err)
 + {
 + 	struct query_context *data;
-+ 	int error;
++ 	int ret;
 + 
 + 	data = g_new0(struct query_context, 1);
 + 	if (! init_data_from_path(data, folder, NULL, FALSE)) {
@@ -973,17 +1142,17 @@ diff -cr plugins/phonebook-ebook.c plugins/phonebook-ebook.c
 + 	data->user_data = user_data;
 + 	data->id = g_strdup(id);
 + 
-+ #ifdef HAVE_RTCOM_EVENTLOGGER
++ #ifdef HAVE_RTCOM_EVENTLOGGER_ASYNC
 + 	if ((data->type & PB_TYPE_MASK) == PB_TYPE_BOOKS)
 + #endif
-+ 		error = ebook_phonebook_get_entry(&data);
-+ #ifdef HAVE_RTCOM_EVENTLOGGER
++ 		ret = ebook_phonebook_get_entry(&data);
++ #ifdef HAVE_RTCOM_EVENTLOGGER_ASYNC
 + 	else
-+ 		error = rtcom_phonebook_get_entry(&data);
++ 		ret = rtcom_phonebook_get_entry(&data);
 + #endif
 + 
 + 	if (err)
-+ 		*err = error;
++ 		*err = ret;
   
   	return data;
   }
@@ -995,7 +1164,7 @@ diff -cr plugins/phonebook-ebook.c plugins/phonebook-ebook.c
   	EContact *me;
   	EVCard *evcard;
 ***************
-*** 777,798 ****
+*** 785,806 ****
   	EVCardAttribute *attrib;
   	char *uid, *tel, *cname;
   
@@ -1018,14 +1187,14 @@ diff -cr plugins/phonebook-ebook.c plugins/phonebook-ebook.c
   	data->ebooks = open_ebooks();
   
   	/* Add 0.vcf */
---- 1165,1172 ----
+--- 1285,1292 ----
 ***************
-*** 838,850 ****
+*** 846,858 ****
   		if (e_book_is_opened(ebook) == FALSE)
   			continue;
   
 ! 		if (e_book_async_get_contacts(ebook, query,
-  						cache_cb, data) == FALSE)
+! 						cache_cb, data) == FALSE)
   			data->queued_calls++;
   	}
   
@@ -1034,61 +1203,37 @@ diff -cr plugins/phonebook-ebook.c plugins/phonebook-ebook.c
   
   	return data;
   }
---- 1212,1301 ----
+--- 1332,1397 ----
   		if (e_book_is_opened(ebook) == FALSE)
   			continue;
   
 ! 		if (e_book_async_get_contacts(ebook, data->query,
-  						cache_cb, data) == FALSE)
+! 						ebook_cache_cb, data) == FALSE)
   			data->queued_calls++;
   	}
   
 + 	return (data->queued_calls == 0 ? -ENOENT : 0);
 + }
 + 
-+ #ifdef HAVE_RTCOM_EVENTLOGGER
++ #ifdef HAVE_RTCOM_EVENTLOGGER_ASYNC
 + int rtcom_phonebook_create_cache(struct query_context **user_data)
 + {
 + 	struct query_context *data = *user_data;
-+ 	RTComElIter *iter;
-+ 	int ret = -ENOENT;
++ 	gint ret;
 + 
 + 	DBG("");
 + 
-+ 	iter = rtcom_get_iter(data->el, data->el_query, 0, -1);
-+ 
-+ 	if (!RTCOM_IS_EL_ITER(iter))
-+ 		goto end;
-+ 
-+ 	if (!rtcom_el_iter_first(iter))
-+ 		goto end;
-+ 	do {
-+ 		DBG("iter %d", data->count);
-+ 		const gchar *ruid = NULL, *rname = NULL;
-+ 		char num[64];
-+ 		if (rtcom_el_iter_get_values(iter,
-+ 		    "remote-uid", &ruid, "remote-name", &rname, 
-+ 		    NULL) && snprintf(num, 64, "%d", data->count)) {
-+ 			data->count++;
-+ 			DBG("entry_cb num %s rname %s ruid %s", num, rname, ruid);
-+ 			data->entry_cb(num, PHONEBOOK_INVALID_HANDLE,
-+ 					rname, NULL, ruid, data->user_data);
-+ 		}
-+ 	} while (rtcom_el_iter_next(iter));
-+ 	ret = 0;
-+ 
-+ end:
-+ 	if (iter)
-+ 		g_object_unref(iter);
-+ 
-+ 	if (ret == 0) {
-+ 		data->ready_cb(data->user_data);
++ 	if ((ret = rtcomel_get_event_list_async(rtcom_cache_cb, data->el_query,
++ 			"id",
++ 			"remote-uid,remote-name",
++ 			0, -1, data))) {
++ 		error("Unable to get call history query %s with: %d", data->el_query, ret);
++ 		return -ENOENT;
++ 	} else {
++ 		data->queued_calls++;
 + 	}
 + 
-+ 	free_query_context(data);
-+ 	*user_data = NULL;
-+ 
-+ 	return ret;
++ 	return 0;
 + }
 + #endif
 + 
@@ -1096,7 +1241,7 @@ diff -cr plugins/phonebook-ebook.c plugins/phonebook-ebook.c
 + 		phonebook_cache_ready_cb ready_cb, void *user_data, int *err)
 + {
 + 	struct query_context *data;
-+ 	int error;
++ 	int ret;
 + 
 + 	DBG("");
 + 
@@ -1111,17 +1256,17 @@ diff -cr plugins/phonebook-ebook.c plugins/phonebook-ebook.c
 + 	data->ready_cb = ready_cb;
 + 	data->user_data = user_data;
 + 
-+ #ifdef HAVE_RTCOM_EVENTLOGGER
++ #ifdef HAVE_RTCOM_EVENTLOGGER_ASYNC
 + 	if ((data->type & PB_TYPE_MASK) == PB_TYPE_BOOKS)
 + #endif
-+ 		error = ebook_phonebook_create_cache(&data);
-+ #ifdef HAVE_RTCOM_EVENTLOGGER
++ 		ret = ebook_phonebook_create_cache(&data);
++ #ifdef HAVE_RTCOM_EVENTLOGGER_ASYNC
 + 	else
-+ 		error = rtcom_phonebook_create_cache(&data);
++ 		ret = rtcom_phonebook_create_cache(&data);
 + #endif
 + 
   	if (err)
-! 		*err = error;
+! 		*err = ret;
   
   	return data;
   }

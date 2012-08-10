@@ -9,6 +9,7 @@ Build-Depends: debhelper (>= 4.0.0),
                libdbus-1-dev,
                libbluetooth3-dev (>= 4.0),
                libebook-dev,
+               librtcom-eventlogger-async-dev,
                libical-dev
 Standards-Version: 3.9.3
 
