@@ -1,0 +1,313 @@
+diff -cr plugins/irmc.c plugins/irmc.c
+*** plugins/irmc.c	Wed Aug  8 05:03:25 2012
+--- plugins/irmc.c	Thu Aug  9 15:18:12 2012
+***************
+*** 281,287 ****
+  	return -EBADR;
+  }
+  
+! static void *irmc_open_devinfo(struct irmc_session *irmc, int *err)
+  {
+  	if (!irmc->buffer)
+  		irmc->buffer = g_string_new("");
+--- 281,287 ----
+  	return -EBADR;
+  }
+  
+! static int irmc_open_devinfo(struct irmc_session *irmc)
+  {
+  	if (!irmc->buffer)
+  		irmc->buffer = g_string_new("");
+***************
+*** 301,393 ****
+  				"NOTE-TYPE-RX:NONE\r\n",
+  				irmc->manu, irmc->model, irmc->sn);
+  
+! 	return irmc;
+  }
+  
+! static void *irmc_open_pb(const char *name, struct irmc_session *irmc,
+! 								int *err)
+  {
+- 	GString *mybuf;
+  	int ret;
+  
+! 	if (!g_strcmp0(name, ".vcf")) {
+! 		/* how can we tell if the vcard count call already finished? */
+! 		irmc->request = phonebook_pull("/telecom/pb.vcf", irmc->params,
+  						query_result, irmc, &ret);
+! 		if (ret < 0) {
+! 			DBG("phonebook_pull failed...");
+! 			goto fail;
+! 		}
+! 
+! 		ret = phonebook_pull_read(irmc->request);
+! 		if (ret < 0) {
+! 			DBG("phonebook_pull_read failed...");
+! 			goto fail;
+! 		}
+  
+! 		return irmc;
+  	}
+  
+! 	if (!g_strcmp0(name, "/info.log")) {
+! 		mybuf = g_string_new("");
+! 		g_string_printf(mybuf, "Total-Records:%d\r\n"
+  				"Maximum-Records:%d\r\n"
+  				"IEL:2\r\n"
+! 				"DID:%s\r\n",
+  				irmc->params->maxlistcount,
+  				irmc->params->maxlistcount, irmc->did);
+- 	} else if (!strncmp(name, "/luid/", 6)) {
+- 		name += 6;
+- 		if (!g_strcmp0(name, "cc.log")) {
+- 			mybuf = g_string_new("");
+- 			g_string_printf(mybuf, "%d\r\n",
+- 						irmc->params->maxlistcount);
+- 		} else {
+- 			int l = strlen(name);
+- 			/* FIXME:
+- 			 * Reply the same to any *.log so we hopefully force a
+- 			 * full phonebook dump.
+- 			 * Is IEL:2 ok?
+- 			 */
+- 			if (l > 4 && !g_strcmp0(name + l - 4, ".log")) {
+- 				DBG("changelog request, force whole book");
+- 				mybuf = g_string_new("");
+- 				g_string_printf(mybuf, "SN:%s\r\n"
+- 							"DID:%s\r\n"
+- 							"Total-Records:%d\r\n"
+- 							"Maximum-Records:%d\r\n"
+- 							"*\r\n",
+- 						irmc->sn, irmc->did,
+- 						irmc->params->maxlistcount,
+- 						irmc->params->maxlistcount);
+- 			} else {
+- 				ret = -EBADR;
+- 				goto fail;
+- 			}
+- 		}
+- 	} else {
+- 		ret = -EBADR;
+- 		goto fail;
+- 	}
+  
+! 	if (!irmc->buffer)
+! 		irmc->buffer = mybuf;
+! 	else {
+! 		irmc->buffer = g_string_append(irmc->buffer, mybuf->str);
+! 		g_string_free(mybuf, TRUE);
+! 	}
+  
+! 	return irmc;
+  
+! fail:
+! 	if (err)
+! 		*err = ret;
+  
+! 	return NULL;
+  }
+  
+! static void *irmc_open_cal(const char *name, struct irmc_session *irmc,
+! 								int *err)
+  {
+  	/* no suport yet. Just return an empty buffer. cal.vcs */
+  	DBG("unsupported, returning empty buffer");
+--- 301,359 ----
+  				"NOTE-TYPE-RX:NONE\r\n",
+  				irmc->manu, irmc->model, irmc->sn);
+  
+! 	return 0;
+  }
+  
+! static int irmc_open_pb(const char *name, struct irmc_session *irmc)
+  {
+  	int ret;
+  
+! 	/* how can we tell if the vcard count call already finished? */
+! 	irmc->request = phonebook_pull(name, irmc->params,
+  						query_result, irmc, &ret);
+! 	if (ret < 0) {
+! 		DBG("phonebook_pull failed...");
+! 		return ret;
+! 	}
+  
+! 	ret = phonebook_pull_read(irmc->request);
+! 	if (ret < 0) {
+! 		DBG("phonebook_pull_read failed...");
+! 		return ret;
+  	}
+  
+! 	return ret;
+! }
+! 
+! static int irmc_open_info(struct irmc_session *irmc)
+! {
+! 	if (irmc->buffer == NULL)
+! 		irmc->buffer = g_string_new("");
+! 
+! 	g_string_printf(irmc->buffer, "Total-Records:%d\r\n"
+  				"Maximum-Records:%d\r\n"
+  				"IEL:2\r\n"
+! 				"DID:%s\r\n"
++ 				"ICL:YES\r\n"
++ 				"OCL:YES\r\n"
++ 				"MCL:YES\r\n",
+  				irmc->params->maxlistcount,
+  				irmc->params->maxlistcount, irmc->did);
+  
+! 	return 0;
+! }
+  
+! static int irmc_open_cc(struct irmc_session *irmc)
+! {
+! 	if (irmc->buffer == NULL)
+! 		irmc->buffer = g_string_new("");
+  
+! 	g_string_printf(irmc->buffer, "%d\r\n", irmc->params->maxlistcount);
+  
+! 	return 0;
+  }
+  
+! static int irmc_open_cal(struct irmc_session *irmc)
+  {
+  	/* no suport yet. Just return an empty buffer. cal.vcs */
+  	DBG("unsupported, returning empty buffer");
+***************
+*** 395,405 ****
+  	if (!irmc->buffer)
+  		irmc->buffer = g_string_new("");
+  
+! 	return irmc;
+  }
+  
+! static void *irmc_open_nt(const char *name, struct irmc_session *irmc,
+! 								int *err)
+  {
+  	/* no suport yet. Just return an empty buffer. nt.vnt */
+  	DBG("unsupported, returning empty buffer");
+--- 361,370 ----
+  	if (!irmc->buffer)
+  		irmc->buffer = g_string_new("");
+  
+! 	return 0;
+  }
+  
+! static int irmc_open_nt(struct irmc_session *irmc)
+  {
+  	/* no suport yet. Just return an empty buffer. nt.vnt */
+  	DBG("unsupported, returning empty buffer");
+***************
+*** 407,421 ****
+  	if (!irmc->buffer)
+  		irmc->buffer = g_string_new("");
+  
+! 	return irmc;
+  }
+  
+  static void *irmc_open(const char *name, int oflag, mode_t mode, void *context,
+  							size_t *size, int *err)
+  {
+  	struct irmc_session *irmc = context;
+! 	int ret = 0;
+! 	const char *p;
+  
+  	DBG("name %s context %p", name, context);
+  
+--- 372,404 ----
+  	if (!irmc->buffer)
+  		irmc->buffer = g_string_new("");
+  
+! 	return 0;
+! }
+! 
+! static int irmc_open_luid(struct irmc_session *irmc)
+! {
+! 	if (irmc->buffer == NULL)
+! 		irmc->buffer = g_string_new("");
+! 
+! 	DBG("changelog request, force whole book");
+! 	g_string_printf(irmc->buffer, "SN:%s\r\n"
+! 					"DID:%s\r\n"
+! 					"Total-Records:%d\r\n"
+! 					"Maximum-Records:%d\r\n"
+! 					"*\r\n",
+! 					irmc->sn, irmc->did,
+! 					irmc->params->maxlistcount,
+! 					irmc->params->maxlistcount);
+! 
+! 	return 0;
+  }
+  
+  static void *irmc_open(const char *name, int oflag, mode_t mode, void *context,
+  							size_t *size, int *err)
+  {
+  	struct irmc_session *irmc = context;
+! 	int ret = -EBADR;
+! 	char *p = (char *) name;
+  
+  	DBG("name %s context %p", name, context);
+  
+***************
+*** 423,442 ****
+  		ret = -EPERM;
+  		goto fail;
+  	}
+! 	if (name == NULL || strncmp(name, "telecom/", 8) != 0) {
+! 		ret = -EBADR;
+  		goto fail;
+- 	}
+  
+! 	p = name + 8;
+! 	if (!g_strcmp0(p, "devinfo.txt"))
+! 		return irmc_open_devinfo(irmc, err);
+! 	else if (!strncmp(p, "pb", 2))
+! 		return irmc_open_pb(p+2, irmc, err);
+! 	else if (!strncmp(p, "cal", 3))
+! 		return irmc_open_cal(p+3, irmc, err);
+! 	else if (!strncmp(p, "nt", 2))
+! 		return irmc_open_nt(p+2, irmc, err);
+  
+  fail:
+  	if (err)
+--- 406,445 ----
+  		ret = -EPERM;
+  		goto fail;
+  	}
+! 	if (p == NULL)
+! 	       goto fail;
+! 	if (*p == '/')
+! 		++p;
+! 	if (strncmp(p, "telecom/", 8) != 0)
+  		goto fail;
+  
+! 	p += 8;
+! 	if (g_str_equal(p, "devinfo.txt")) {
+! 		ret = irmc_open_devinfo(irmc);
+! 	} else if (g_str_has_prefix(p, "pb")) {
+! 		p += 2;
+! 		if (g_str_equal(p, ".vcf"))
+! 			ret = irmc_open_pb("/telecom/pb.vcf", irmc);
+! 		else if (*p == '/') {
+! 			++p;
+! 			if (g_str_equal(p, "info.log"))
+! 				ret = irmc_open_info(irmc);
+! 			else if (g_str_equal(p, "luid/cc.log"))
+! 				ret = irmc_open_cc(irmc);
+! 		}
+! 	} else if (g_str_equal(p, "ich.vcf")) {
+! 		ret = irmc_open_pb("/telecom/ich.vcf", irmc);
+! 	} else if (g_str_equal(p, "och.vcf")) {
+! 		ret = irmc_open_pb("/telecom/och.vcf", irmc);
+! 	} else if (g_str_equal(p, "mch.vcf")) {
+! 		ret = irmc_open_pb("/telecom/mch.vcf", irmc);
+! 	} else if (g_str_has_prefix(p, "cal")) {
+! 		ret = irmc_open_cal(irmc);
+! 	} else if (g_str_has_prefix(p, "nt")) {
+! 		ret = irmc_open_nt(irmc);
+! 	} else if (g_str_has_prefix(p, "luid")) {
+! 		ret = irmc_open_luid(irmc);
+! 	}
+  
+  fail:
+  	if (err)
