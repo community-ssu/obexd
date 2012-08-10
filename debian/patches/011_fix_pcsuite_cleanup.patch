@@ -1,0 +1,64 @@
+diff -cr plugins/pcsuite.c plugins/pcsuite.c
+*** plugins/pcsuite.c	Thu May 17 11:12:17 2012
+--- plugins/pcsuite.c	Wed Aug  8 08:37:39 2012
+***************
+*** 51,56 ****
+--- 51,57 ----
+  
+  #define PCSUITE_CHANNEL 24
+  #define PCSUITE_WHO_SIZE 8
++ #define PCSUITE_FILE_NAME ".pcsuite"
+  
+  #define PCSUITE_RECORD "<?xml version=\"1.0\" encoding=\"UTF-8\" ?>	\
+  <record>								\
+***************
+*** 126,132 ****
+  	if (ftp == NULL)
+  		return NULL;
+  
+! 	filename = g_build_filename(g_get_home_dir(), ".pcsuite", NULL);
+  
+  	fd = open(filename, O_WRONLY | O_CREAT | O_EXCL, 0644);
+  	if (fd < 0 && errno != EEXIST) {
+--- 127,133 ----
+  	if (ftp == NULL)
+  		return NULL;
+  
+! 	filename = g_build_filename(g_get_home_dir(), PCSUITE_FILE_NAME, NULL);
+  
+  	fd = open(filename, O_WRONLY | O_CREAT | O_EXCL, 0644);
+  	if (fd < 0 && errno != EEXIST) {
+***************
+*** 489,498 ****
+--- 490,520 ----
+  	.flush = backup_flush,
+  };
+  
++ static void pcsuite_file_cleanup()
++ {
++ 	char *filename;
++ 	struct stat buf;
++ 
++ 	filename = g_build_filename(g_get_home_dir(), PCSUITE_FILE_NAME, NULL);
++ 
++ 	if (stat(filename, &buf) == 0) {
++ 		DBG("Removing unneeded pcsuite-file: %s", filename);
++ 		remove(filename);
++ 	}
++ 
++ 	g_free(filename);
++ }
++ 
+  static int pcsuite_init(void)
+  {
+  	int err;
+  
++ 	/* In some cases '.pcsuite' file will be present on device even if
++ 	 * there is no PC-Suite connection active in the moment (eg. obexd
++ 	 * crashed or was killed while pcsuite connection was active)
++ 	 * Removing this file if not needed. */
++ 	pcsuite_file_cleanup();
++ 
+  	err = obex_service_driver_register(&pcsuite);
+  	if (err < 0)
+  		return err;
