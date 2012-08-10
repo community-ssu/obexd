@@ -1,0 +1,47 @@
+diff -cr gobex/gobex-debug.h gobex/gobex-debug.h
+*** gobex/gobex-debug.h	Thu May 17 11:12:17 2012
+--- gobex/gobex-debug.h	Wed Aug  8 07:42:17 2012
+***************
+*** 37,44 ****
+  
+  #define g_obex_debug(level, format, ...) \
+  	if (gobex_debug & level) \
+! 		g_debug("%s:%s() " format, __FILE__, __FUNCTION__, \
+! 							## __VA_ARGS__)
+  
+  static inline void g_obex_dump(const char *prefix, const void *buf,
+  								gsize len)
+--- 37,44 ----
+  
+  #define g_obex_debug(level, format, ...) \
+  	if (gobex_debug & level) \
+! 		g_log("gobex", G_LOG_LEVEL_DEBUG, "%s:%s() " format, __FILE__, \
+! 						__FUNCTION__, ## __VA_ARGS__)
+  
+  static inline void g_obex_dump(const char *prefix, const void *buf,
+  								gsize len)
+diff -cr gobex/gobex.c gobex/gobex.c
+*** gobex/gobex.c	Thu May 17 11:12:17 2012
+--- gobex/gobex.c	Wed Aug  8 07:46:49 2012
+***************
+*** 1246,1254 ****
+  
+  	if (gobex_debug == 0) {
+  		const char *env = g_getenv("GOBEX_DEBUG");
+! 		if (env)
+  			gobex_debug = g_parse_debug_string(env, keys, 6);
+! 		else
+  			gobex_debug = G_OBEX_DEBUG_NONE;
+  	}
+  
+--- 1246,1255 ----
+  
+  	if (gobex_debug == 0) {
+  		const char *env = g_getenv("GOBEX_DEBUG");
+! 		if (env) {
+  			gobex_debug = g_parse_debug_string(env, keys, 6);
+! 			g_setenv("G_MESSAGES_DEBUG", "gobex", FALSE);
+! 		} else
+  			gobex_debug = G_OBEX_DEBUG_NONE;
+  	}
+  
