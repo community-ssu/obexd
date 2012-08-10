@@ -1,8 +1,20 @@
+obexd (0.46-1maemo3+0cssu1) unstable; urgency=low
+
+  * Rewrite call history using asynchronous calls (reduce obexd patches)
+  * Fix removal of filter after last filter_data
+  * Fix incorrectly discarded signals 
+  * Fix not printing debug messages when GOBEX_DEBUG is set
+  * Fix client PBAP setpath using absolute path with known locations
+  * Add cleanup of '.pcsuite' file on init
+  * Add call history support to IrMC profile
+
+ -- Ludek Finstrle <luf@pzkagis.cz>  Tue, 07 Aug 2012 15:47:38 +0200
+
 obexd (0.46-1maemo2+0cssu1) unstable; urgency=low
 
   * Fix CSSU version info
 
- -- Ludek Finstrle <luf@pzkagis.cz>  Wed,  1 Aug 2012  9:58:49 +0200
+ -- Ludek Finstrle <luf@pzkagis.cz> Wed, 01 Aug 2012 09:58:49 +0200
 
 obexd (0.46-1maemo2+cssu1) unstable; urgency=low
 
