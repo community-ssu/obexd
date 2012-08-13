@@ -1,0 +1,27 @@
+diff -cr client/bluetooth.c client/bluetooth.c
+*** client/bluetooth.c	2012-05-17 17:12:17.000000000 +0200
+--- client/bluetooth.c	2012-08-13 16:24:44.970007923 +0200
+***************
+*** 239,245 ****
+  	do {
+  		sdp_record_t *rec;
+  		sdp_list_t *protos;
+- 		sdp_data_t *data;
+  		int recsize, ch = -1;
+  
+  		recsize = 0;
+--- 239,244 ----
+***************
+*** 260,270 ****
+  			protos = NULL;
+  		}
+  
+- 		data = sdp_data_get(rec, 0x0200);
+- 		/* PSM must be odd and lsb of upper byte must be 0 */
+- 		if (data != NULL && (data->val.uint16 & 0x0101) == 0x0001)
+- 			ch = data->val.uint16;
+- 
+  		sdp_record_free(rec);
+  
+  		if (ch > 0) {
+--- 259,264 ----
