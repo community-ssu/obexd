@@ -1,3 +1,10 @@
+obexd (0.46-1maemo3+0cssu2) unstable; urgency=low
+
+  * Backport client bluetooth connection
+  * Disable MAP as the support isn't working yet
+
+ -- Ludek Finstrle <luf@pzkagis.cz>  Wed, 05 Sep 2012 00:55:12 +0200 
+
 obexd (0.46-1maemo3+0cssu1) unstable; urgency=low
 
   * Rewrite call history using asynchronous calls (reduce obexd patches)
