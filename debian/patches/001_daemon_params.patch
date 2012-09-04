@@ -9,4 +9,4 @@ diff -cr src/obexd.service.in src/obexd.service.in
 --- 1,3 ----
   [D-BUS Service]
   Name=org.openobex
-! Exec=@libexecdir@/obexd --nodaemon --symlinks --root .obex-root --root-setup /usr/bin/obex-root-setup --capability '!/usr/bin/gen-obex-capability.sh'
+! Exec=@libexecdir@/obexd --nodaemon --noplugin=mas --symlinks --root .obex-root --root-setup /usr/bin/obex-root-setup --capability '!/usr/bin/gen-obex-capability.sh'
