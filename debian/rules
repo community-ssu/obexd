@@ -12,6 +12,7 @@ DEB_CONFIGURE_EXTRA_FLAGS := --enable-debug \
 		--libexec=/usr/lib/obex \
 		--mandir=/usr/share/man \
 		--sysconfdir=/etc \
+		--with-messages=rtcom \
 		--with-phonebook=ebook \
 		--with-rtcom-eventlogger=yes
 
@@ -28,4 +29,5 @@ install/obexd-test::
 	install -D -m 0754 test/pull-business-card $(DEB_DESTDIR)/usr/bin/obexd-pull-business-card
 	install -D -m 0754 test/send-files $(DEB_DESTDIR)/usr/bin/obexd-send-files
 	install -D -m 0754 test/simple-agent $(DEB_DESTDIR)/usr/bin/obexd-simple-agent
+	install -D -m 0754 test/mns-client $(DEB_DESTDIR)/usr/bin/obexd-mns-client
 

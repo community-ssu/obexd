@@ -1,3 +1,14 @@
+obexd (0.46-1maemo4+0cssu1) unstable; urgency=low
+
+  * Initial MAP support (no notifications, no push methods)
+  * Disable Syncevolution SYNCML plugin as it conflicts with Nokia one
+    and break bluetooth synchronization
+  * Add phone type none into internal vcard handling
+  * Regression: Fixes: NB#149737 - Not possible to browse external memory
+    card through file manager in pc suite
+
+ -- Ludek Finstrle <luf@pzkagis.cz>  Tue, 02 Oct 2012 11:08:49 +0200
+
 obexd (0.46-1maemo3+0cssu2) unstable; urgency=low
 
   * Backport client bluetooth connection

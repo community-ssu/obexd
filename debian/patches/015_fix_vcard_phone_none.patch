@@ -1,0 +1,227 @@
+diff -crN plugins/vcard.c plugins/vcard.c
+*** plugins/vcard.c	Tue Oct  2 04:23:38 2012
+--- plugins/vcard.c	Tue Oct  2 05:04:08 2012
+***************
+*** 471,503 ****
+  	switch (category) {
+  	case TEL_TYPE_HOME:
+  		if (format == FORMAT_VCARD21)
+! 			category_string = "HOME;VOICE";
+  		else if (format == FORMAT_VCARD30)
+! 			category_string = "TYPE=HOME;TYPE=VOICE";
+  		break;
+  	case TEL_TYPE_MOBILE:
+  		if (format == FORMAT_VCARD21)
+! 			category_string = "CELL;VOICE";
+  		else if (format == FORMAT_VCARD30)
+! 			category_string = "TYPE=CELL;TYPE=VOICE";
+  		break;
+  	case TEL_TYPE_FAX:
+  		if (format == FORMAT_VCARD21)
+! 			category_string = "FAX";
+  		else if (format == FORMAT_VCARD30)
+! 			category_string = "TYPE=FAX";
+  		break;
+  	case TEL_TYPE_WORK:
+  		if (format == FORMAT_VCARD21)
+! 			category_string = "WORK;VOICE";
+  		else if (format == FORMAT_VCARD30)
+! 			category_string = "TYPE=WORK;TYPE=VOICE";
+  		break;
+  	case TEL_TYPE_OTHER:
+  		if (format == FORMAT_VCARD21)
+! 			category_string = "OTHER;VOICE";
+  		else if (format == FORMAT_VCARD30)
+! 			category_string = "TYPE=OTHER;TYPE=VOICE";
+  		break;
+  	}
+  
+--- 471,506 ----
+  	switch (category) {
+  	case TEL_TYPE_HOME:
+  		if (format == FORMAT_VCARD21)
+! 			category_string = ";HOME;VOICE";
+  		else if (format == FORMAT_VCARD30)
+! 			category_string = ";TYPE=HOME;TYPE=VOICE";
+  		break;
+  	case TEL_TYPE_MOBILE:
+  		if (format == FORMAT_VCARD21)
+! 			category_string = ";CELL;VOICE";
+  		else if (format == FORMAT_VCARD30)
+! 			category_string = ";TYPE=CELL;TYPE=VOICE";
+  		break;
+  	case TEL_TYPE_FAX:
+  		if (format == FORMAT_VCARD21)
+! 			category_string = ";FAX";
+  		else if (format == FORMAT_VCARD30)
+! 			category_string = ";TYPE=FAX";
+  		break;
+  	case TEL_TYPE_WORK:
+  		if (format == FORMAT_VCARD21)
+! 			category_string = ";WORK;VOICE";
+  		else if (format == FORMAT_VCARD30)
+! 			category_string = ";TYPE=WORK;TYPE=VOICE";
+  		break;
+  	case TEL_TYPE_OTHER:
+  		if (format == FORMAT_VCARD21)
+! 			category_string = ";OTHER;VOICE";
+  		else if (format == FORMAT_VCARD30)
+! 			category_string = ";TYPE=OTHER;TYPE=VOICE";
+! 		break;
+! 	case TEL_TYPE_NONE:
+! 		category_string = "";
+  		break;
+  	}
+  
+***************
+*** 507,518 ****
+  	snprintf(field, sizeof(field), "%s%s", intl, number);
+  
+  	if (select_qp_encoding(format, number, NULL)) {
+! 		snprintf(buf, sizeof(buf), "TEL;%s", category_string);
+  		vcard_qp_print_encoded(vcards, buf, field, NULL);
+  		return;
+  	}
+  
+! 	vcard_printf(vcards, "TEL;%s:%s", category_string, field);
+  }
+  
+  static void vcard_printf_tag(GString *vcards, uint8_t format,
+--- 510,521 ----
+  	snprintf(field, sizeof(field), "%s%s", intl, number);
+  
+  	if (select_qp_encoding(format, number, NULL)) {
+! 		snprintf(buf, sizeof(buf), "TEL%s", category_string);
+  		vcard_qp_print_encoded(vcards, buf, field, NULL);
+  		return;
+  	}
+  
+! 	vcard_printf(vcards, "TEL%s:%s", category_string, field);
+  }
+  
+  static void vcard_printf_tag(GString *vcards, uint8_t format,
+***************
+*** 800,814 ****
+  
+  	vcard_printf_begin(vcards, format);
+  
+! 	if (filter & FILTER_UID && *contact->uid)
+  		vcard_printf_tag(vcards, format, "UID", NULL, contact->uid);
+  
+  	if (filter & FILTER_N)
+  		vcard_printf_name(vcards, format, contact);
+  
+! 	if (filter & FILTER_FN && (*contact->fullname ||
+! 					format == FORMAT_VCARD30))
+! 		vcard_printf_fullname(vcards, format, contact->fullname);
+  
+  	if (filter & FILTER_TEL) {
+  		GSList *l = contact->numbers;
+--- 803,820 ----
+  
+  	vcard_printf_begin(vcards, format);
+  
+! 	if (filter & FILTER_UID && contact->uid != NULL && *contact->uid)
+  		vcard_printf_tag(vcards, format, "UID", NULL, contact->uid);
+  
+  	if (filter & FILTER_N)
+  		vcard_printf_name(vcards, format, contact);
+  
+! 	if (filter & FILTER_FN) {
+! 		if (contact->fullname != NULL && *contact->fullname)
+! 			vcard_printf_fullname(vcards, format, contact->fullname);
+! 		else if (format == FORMAT_VCARD30)
+! 			vcard_printf_fullname(vcards, FORMAT_VCARD30, "");
+! 	}
+  
+  	if (filter & FILTER_TEL) {
+  		GSList *l = contact->numbers;
+***************
+*** 844,854 ****
+  		}
+  	}
+  
+! 	if (filter & FILTER_BDAY && *contact->birthday)
+  		vcard_printf_tag(vcards, format, "BDAY", NULL,
+  						contact->birthday);
+  
+! 	if (filter & FILTER_NICKNAME && *contact->nickname)
+  		vcard_printf_tag(vcards, format, "NICKNAME", NULL,
+  							contact->nickname);
+  
+--- 850,862 ----
+  		}
+  	}
+  
+! 	if (filter & FILTER_BDAY && contact->birthday != NULL &&
+! 							*contact->birthday)
+  		vcard_printf_tag(vcards, format, "BDAY", NULL,
+  						contact->birthday);
+  
+! 	if (filter & FILTER_NICKNAME && contact->nickname != NULL &&
+! 							*contact->nickname)
+  		vcard_printf_tag(vcards, format, "NICKNAME", NULL,
+  							contact->nickname);
+  
+***************
+*** 861,877 ****
+  		}
+  	}
+  
+! 	if (filter & FILTER_PHOTO && *contact->photo)
+  		vcard_printf_tag(vcards, format, "PHOTO", NULL,
+  							contact->photo);
+  
+  	if (filter & FILTER_ORG)
+  		vcard_printf_org(vcards, format, contact);
+  
+! 	if (filter & FILTER_ROLE && *contact->role)
+  		vcard_printf_tag(vcards, format, "ROLE", NULL, contact->role);
+  
+! 	if (filter & FILTER_TITLE && *contact->title)
+  		vcard_printf_tag(vcards, format, "TITLE", NULL, contact->title);
+  
+  	if (filter & FILTER_X_IRMC_CALL_DATETIME)
+--- 869,888 ----
+  		}
+  	}
+  
+! 	if (filter & FILTER_PHOTO && contact->photo != NULL &&
+! 							*contact->photo)
+  		vcard_printf_tag(vcards, format, "PHOTO", NULL,
+  							contact->photo);
+  
+  	if (filter & FILTER_ORG)
+  		vcard_printf_org(vcards, format, contact);
+  
+! 	if (filter & FILTER_ROLE && contact->role != NULL &&
+! 							*contact->role)
+  		vcard_printf_tag(vcards, format, "ROLE", NULL, contact->role);
+  
+! 	if (filter & FILTER_TITLE && contact->title != NULL &&
+! 							*contact->title)
+  		vcard_printf_tag(vcards, format, "TITLE", NULL, contact->title);
+  
+  	if (filter & FILTER_X_IRMC_CALL_DATETIME)
+diff -crN plugins/vcard.h plugins/vcard.h
+*** plugins/vcard.h	Tue Oct  2 04:11:18 2012
+--- plugins/vcard.h	Tue Oct  2 04:37:04 2012
+***************
+*** 19,30 ****
+--- 19,34 ----
+   *
+   */
+  
++ #define FORMAT_VCARD21 0x00
++ #define FORMAT_VCARD30 0x01
++ 
+  enum phonebook_number_type {
+  	TEL_TYPE_HOME,
+  	TEL_TYPE_MOBILE,
+  	TEL_TYPE_FAX,
+  	TEL_TYPE_WORK,
+  	TEL_TYPE_OTHER,
++ 	TEL_TYPE_NONE,
+  };
+  
+  enum phonebook_field_type {

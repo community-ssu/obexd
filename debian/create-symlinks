@@ -10,3 +10,4 @@ ln -s ../MyDocs/.sounds "Audio clips"
 ln -s ../MyDocs/.camera Camera
 ln -s ../MyDocs/.videos "Video clips"
 ln -s ../MyDocs Data
+ln -s /media/mmc1 "Memory card"

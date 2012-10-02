@@ -1,0 +1,118 @@
+diff -crN src/map_ap.c src/map_ap.c
+*** src/map_ap.c	Tue Oct  2 04:11:20 2012
+--- src/map_ap.c	Tue Oct  2 05:02:12 2012
+***************
+*** 240,248 ****
+  static void ap_encode_u8(GByteArray *buf, struct ap_entry *entry)
+  {
+  	struct obex_ap_header *hdr;
+  
+- 	hdr = (struct obex_ap_header *) buf->data + buf->len;
+  	g_byte_array_set_size(buf, buf->len + sizeof(*hdr) + 1);
+  
+  	hdr->tag = entry->tag;
+  	hdr->len = 1;
+--- 240,249 ----
+  static void ap_encode_u8(GByteArray *buf, struct ap_entry *entry)
+  {
+  	struct obex_ap_header *hdr;
++ 	size_t len = buf->len;
+  
+  	g_byte_array_set_size(buf, buf->len + sizeof(*hdr) + 1);
++ 	hdr = (struct obex_ap_header *) (buf->data + len);
+  
+  	hdr->tag = entry->tag;
+  	hdr->len = 1;
+***************
+*** 252,262 ****
+  static void ap_encode_u16(GByteArray *buf, struct ap_entry *entry)
+  {
+  	struct obex_ap_header *hdr;
+  	uint16_t val;
+  
+- 	hdr = (struct obex_ap_header *) buf->data + buf->len;
+- 
+  	g_byte_array_set_size(buf, buf->len + sizeof(*hdr) + 2);
+  
+  	hdr->tag = entry->tag;
+  	hdr->len = 2;
+--- 253,263 ----
+  static void ap_encode_u16(GByteArray *buf, struct ap_entry *entry)
+  {
+  	struct obex_ap_header *hdr;
++ 	size_t len = buf->len;
+  	uint16_t val;
+  
+  	g_byte_array_set_size(buf, buf->len + sizeof(*hdr) + 2);
++ 	hdr = (struct obex_ap_header *) (buf->data + len);
+  
+  	hdr->tag = entry->tag;
+  	hdr->len = 2;
+***************
+*** 267,298 ****
+  
+  static void ap_encode_u32(GByteArray *buf, struct ap_entry *entry)
+  {
+- 	uint32_t val;
+  	struct obex_ap_header *hdr;
+  
+- 	hdr = (struct obex_ap_header *) buf->data + buf->len;
+  	g_byte_array_set_size(buf, buf->len + sizeof(*hdr) + 4);
+  
+  	hdr->tag = entry->tag;
+  	hdr->len = 4;
+  
+! 	val = GUINT32_TO_BE(entry->val.u16);
+  	memcpy(hdr->val, &val, sizeof(val));
+  }
+  
+  static void ap_encode_str(GByteArray *buf, struct ap_entry *entry)
+  {
+- 	size_t len;
+  	struct obex_ap_header *hdr;
+  
+! 	hdr = (struct obex_ap_header *) buf->data + buf->len;
+! 	len = strlen(entry->val.str);
+! 	g_byte_array_set_size(buf, buf->len + sizeof(*hdr) + len);
+  
+  	hdr->tag = entry->tag;
+! 	hdr->len = len;
+  
+! 	memcpy(hdr->val, entry->val.str, len);
+  }
+  
+  uint8_t *map_ap_encode(map_ap_t *ap, size_t *length)
+--- 268,300 ----
+  
+  static void ap_encode_u32(GByteArray *buf, struct ap_entry *entry)
+  {
+  	struct obex_ap_header *hdr;
++ 	size_t len = buf->len;
++ 	uint32_t val;
+  
+  	g_byte_array_set_size(buf, buf->len + sizeof(*hdr) + 4);
++ 	hdr = (struct obex_ap_header *) (buf->data + len);
+  
+  	hdr->tag = entry->tag;
+  	hdr->len = 4;
+  
+! 	val = GUINT32_TO_BE(entry->val.u32);
+  	memcpy(hdr->val, &val, sizeof(val));
+  }
+  
+  static void ap_encode_str(GByteArray *buf, struct ap_entry *entry)
+  {
+  	struct obex_ap_header *hdr;
++ 	size_t entlen, len = buf->len;
+  
+! 	entlen = strlen(entry->val.str);
+! 	g_byte_array_set_size(buf, buf->len + sizeof(*hdr) + entlen);
+! 	hdr = (struct obex_ap_header *) (buf->data + len);
+  
+  	hdr->tag = entry->tag;
+! 	hdr->len = entlen;
+  
+! 	memcpy(hdr->val, entry->val.str, entlen);
+  }
+  
+  uint8_t *map_ap_encode(map_ap_t *ap, size_t *length)
