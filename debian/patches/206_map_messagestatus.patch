@@ -1,0 +1,611 @@
+author	Sunil Kumar Behera <sunil.behera@samsung.com>
+commit	0c2cf119d1923a761bc5ed1fc9255b93b52abdaa
+commit	316096f8cc8bc5cd49d2f9953a429737376d35d1
+commit	6fad7f6d7972dcf0795ed51f2985acb7175a3961
+	Fri, 14 Sep 2012 09:54:35 +0000 (12:54 +0300)
+
+MAP: Add support for MessageStatus
+
+Add driver to support x-bt/messageStatus mimetype
+
+MAP: Add set read status function
+
+This function will inform MAP server to modify the
+read status of a given message.
+
+MAP: Add set delete status function
+
+This function will inform MAP server to modify
+the delete status of a given message.
+
+author	Luiz Augusto von Dentz <luiz.von.dentz@intel.com>
+commit	15b15167fb2dd82e2189cc1955def1818a7bc6a6
+	Fri, 14 Sep 2012 10:21:45 +0000 (13:21 +0300)
+
+MAP: Unify callbacks for operations that only report status
+
+This removes duplicated code.
+
+diff -cr plugins/mas.c plugins/mas.c
+*** plugins/mas.c	Thu Oct  4 08:36:48 2012
+--- plugins/mas.c	Fri Oct  5 05:30:43 2012
+***************
+*** 46,51 ****
+--- 46,55 ----
+  #include "messages.h"
+  #include "bmsg_parser.h"
+  
++ /* Constants for MessageStatus */
++ #define READ_STATUS_REQ 0
++ #define DELETE_STATUS_REQ 1
++ 
+  /* Channel number according to bluez doc/assigned-numbers.txt */
+  #define MAS_CHANNEL	16
+  
+***************
+*** 879,898 ****
+  		obex_object_set_io_flags(mas, G_IO_IN, err);
+  }
+  
+- static void update_inbox_cb(void *session, int err, void *user_data)
+- {
+- 	struct mas_session *mas = user_data;
+- 
+- 	DBG("");
+- 
+- 	mas->finished = TRUE;
+- 
+- 	if (err < 0)
+- 		obex_object_set_io_flags(mas, G_IO_ERR, err);
+- 	else
+- 		obex_object_set_io_flags(mas, G_IO_OUT, 0);
+- }
+- 
+  static int mas_setpath(struct obex_session *os, void *user_data)
+  {
+  	const char *name;
+--- 883,888 ----
+***************
+*** 1351,1357 ****
+  	return 0;
+  }
+  
+! static void message_status_cb(void *session, int err, void *user_data)
+  {
+  	struct mas_session *mas = user_data;
+  
+--- 1341,1347 ----
+  	return 0;
+  }
+  
+! static void set_status_cb(void *session, int err, void *user_data)
+  {
+  	struct mas_session *mas = user_data;
+  
+***************
+*** 1368,1381 ****
+  		obex_object_set_io_flags(mas, G_IO_OUT, 0);
+  }
+  
+! static void *message_status_open(const char *name, int oflag, mode_t mode,
+  				void *driver_data, size_t *size, int *err)
+  {
+  	struct mas_session *mas = driver_data;
+  	uint8_t indicator;
+  	uint8_t value;
+  
+! 	if (!(oflag & O_WRONLY)) {
+  		DBG("Tried GET on a PUT-only type");
+  		*err = -EBADR;
+  
+--- 1358,1371 ----
+  		obex_object_set_io_flags(mas, G_IO_OUT, 0);
+  }
+  
+! static void *message_set_status_open(const char *name, int oflag, mode_t mode,
+  				void *driver_data, size_t *size, int *err)
+  {
+  	struct mas_session *mas = driver_data;
+  	uint8_t indicator;
+  	uint8_t value;
+  
+! 	if (oflag == O_RDONLY) {
+  		DBG("Tried GET on a PUT-only type");
+  		*err = -EBADR;
+  
+***************
+*** 1397,1409 ****
+  	}
+  
+  	DBG("indicator: %d, value: %d", indicator, value);
+! 	*err = messages_set_message_status(mas->backend_data, name, indicator,
+! 						value, message_status_cb, mas);
+  
+  	if (*err)
+  		return NULL;
+! 	else
+! 		return mas;
+  }
+  
+  static void *message_update_open(const char *name, int oflag, mode_t mode,
+--- 1387,1405 ----
+  	}
+  
+  	DBG("indicator: %d, value: %d", indicator, value);
+! 	if (indicator == READ_STATUS_REQ)
+! 		*err = messages_set_read(mas->backend_data, name, value,
+! 							set_status_cb, mas);
+! 	else if (indicator == DELETE_STATUS_REQ)
+! 		*err = messages_set_delete(mas->backend_data, name, value,
+! 							set_status_cb, mas);
+! 	else
+! 		*err = -EBADR;
+  
+  	if (*err)
+  		return NULL;
+! 
+! 	return mas;
+  }
+  
+  static void *message_update_open(const char *name, int oflag, mode_t mode,
+***************
+*** 1419,1425 ****
+  		return NULL;
+  	}
+  
+! 	*err = messages_update_inbox(mas->backend_data, update_inbox_cb, mas);
+  
+  	if (*err < 0)
+  		return NULL;
+--- 1415,1421 ----
+  		return NULL;
+  	}
+  
+! 	*err = messages_update_inbox(mas->backend_data, set_status_cb, mas);
+  
+  	if (*err < 0)
+  		return NULL;
+***************
+*** 1598,1604 ****
+  	.target = MAS_TARGET,
+  	.target_size = TARGET_SIZE,
+  	.mimetype = "x-bt/messageStatus",
+! 	.open = message_status_open,
+  	.close = any_close,
+  	.read = any_read,
+  	.write = any_write,
+--- 1594,1600 ----
+  	.target = MAS_TARGET,
+  	.target_size = TARGET_SIZE,
+  	.mimetype = "x-bt/messageStatus",
+! 	.open = message_set_status_open,
+  	.close = any_close,
+  	.read = any_read,
+  	.write = any_write,
+diff -cr plugins/messages-dummy.c plugins/messages-dummy.c
+*** plugins/messages-dummy.c	Thu Oct  4 08:38:46 2012
+--- plugins/messages-dummy.c	Fri Oct  5 03:07:46 2012
+***************
+*** 375,385 ****
+  	return -ENOSYS;
+  }
+  
+! int messages_set_message_status(void *session, const char *handle, uint8_t indicator,
+! 			uint8_t value, messages_set_message_status_cb callback,
+! 			void *user_data)
+  {
+! 	return -EINVAL;
+  }
+  
+  int messages_push_message(void *session, struct bmsg_bmsg *bmsg,
+--- 375,390 ----
+  	return -ENOSYS;
+  }
+  
+! int messages_set_read(void *session, const char *handle, uint8_t value,
+! 				messages_status_cb callback, void *user_data)
+  {
+! 	return -ENOSYS;
+! }
+! 
+! int messages_set_delete(void *session, const char *handle, uint8_t value,
+! 				messages_status_cb callback, void *user_data)
+! {
+! 	return -ENOSYS;
+  }
+  
+  int messages_push_message(void *session, struct bmsg_bmsg *bmsg,
+***************
+*** 395,401 ****
+  }
+  
+  
+! int messages_update_inbox(void *session, messages_update_inbox_cb callback,
+  							void *user_data)
+  {
+  	return -ENOSYS;
+--- 400,406 ----
+  }
+  
+  
+! int messages_update_inbox(void *session, messages_status_cb callback,
+  							void *user_data)
+  {
+  	return -ENOSYS;
+diff -cr plugins/messages-rtcom.c plugins/messages-rtcom.c
+*** plugins/messages-rtcom.c	Thu Oct  4 09:01:00 2012
+--- plugins/messages-rtcom.c	Fri Oct  5 05:35:13 2012
+***************
+*** 119,125 ****
+  		messages_folder_listing_cb folder_list;
+  		messages_get_messages_listing_cb messages_list;
+  		messages_get_message_cb message;
+! 		messages_set_message_status_cb status;
+  	} cb;
+  };
+  
+--- 119,125 ----
+  		messages_folder_listing_cb folder_list;
+  		messages_get_messages_listing_cb messages_list;
+  		messages_get_message_cb message;
+! 		messages_status_cb status;
+  	} cb;
+  };
+  
+***************
+*** 1368,1376 ****
+  }
+  #endif
+  
+! int messages_set_message_status(void *sess, const char *handle, uint8_t indicator,
+! 			uint8_t value, messages_set_message_status_cb callback,
+! 			void *user_data)
+  {
+  #if 0
+  /*
+--- 1368,1375 ----
+  }
+  #endif
+  
+! int messages_set_read(void *sess, const char *handle, uint8_t value,
+! 				messages_status_cb callback, void *user_data)
+  {
+  #if 0
+  /*
+***************
+*** 1394,1424 ****
+  	request->user_data = user_data;
+  	session->request = request;
+  
+! 	switch (indicator) {
+! 		case 0x0:
+! 			ret = messages_qt_set_read(&request->set_status_call,
+! 						handle, value & 0x01,
+! 						messages_qt_callback, session);
+! 			if (ret < 0)
+! 				return ret;
+  
+! 			stat->read = value;
+! 			break;
+! 		case 0x1:
+! 			ret = messages_qt_set_deleted(&request->set_status_call,
+! 						handle, value & 0x01,
+! 						messages_qt_callback, session);
+! 			if (ret < 0)
+! 				return ret;
+  
+! 			stat->deleted = value;
+! 			break;
+! 		default:
+! 			g_free(request);
+! 			session->request = NULL;
+! 			return -EBADR;
+  	}
+  
+  	return 0;
+  #else
+  	return -ENOSYS;
+--- 1393,1445 ----
+  	request->user_data = user_data;
+  	session->request = request;
+  
+! 	ret = messages_qt_set_read(&request->set_status_call,
+! 					handle, value & 0x01,
+! 					messages_qt_callback, session);
+! 	if (ret < 0)
+! 		return ret;
+  
+! 	stat->read = value;
+  
+! 	return 0;
+! #else
+! 	return -ENOSYS;
+! #endif
+! }
+! 
+! int messages_set_delete(void *sess, const char *handle, uint8_t value,
+! 				messages_status_cb callback, void *user_data)
+! {
+! #if 0
+! /*
+!  * TODO: update message status to read or delete the message
+!  */
+! 	struct session *session = sess;
+! 	struct message_status *stat = NULL;
+! 	int ret;
+! 	struct request *request;
+! 
+! 	stat = g_hash_table_lookup(session->msg_stat, handle);
+! 	if (stat == NULL) {
+! 		stat = g_new0(struct message_status, 1);
+! 		stat->read = STATUS_NOT_SET;
+! 
+! 		g_hash_table_insert(session->msg_stat, g_strdup(handle), stat);
+  	}
+  
++ 	request = g_new0(struct request, 1);
++ 	request->cb.status = callback;
++ 	request->user_data = user_data;
++ 	session->request = request;
++ 
++ 	ret = messages_qt_set_deleted(&request->set_status_call,
++ 					handle, value & 0x01,
++ 					messages_qt_callback, session);
++ 	if (ret < 0)
++ 		return ret;
++ 
++ 	stat->deleted = value;
++ 
+  	return 0;
+  #else
+  	return -ENOSYS;
+***************
+*** 1920,1926 ****
+  #endif
+  }
+  
+! int messages_update_inbox(void *sess, messages_update_inbox_cb callback,
+  							void *user_data)
+  {
+  	return -ENOSYS;
+--- 1941,1947 ----
+  #endif
+  }
+  
+! int messages_update_inbox(void *sess, messages_status_cb callback,
+  							void *user_data)
+  {
+  	return -ENOSYS;
+diff -cr plugins/messages-tracker.c plugins/messages-tracker.c
+*** plugins/messages-tracker.c	Thu Oct  4 08:58:41 2012
+--- plugins/messages-tracker.c	Fri Oct  5 05:37:23 2012
+***************
+*** 166,172 ****
+  		messages_folder_listing_cb folder_list;
+  		messages_get_messages_listing_cb messages_list;
+  		messages_get_message_cb message;
+! 		messages_set_message_status_cb status;
+  	} cb;
+  };
+  
+--- 166,172 ----
+  		messages_folder_listing_cb folder_list;
+  		messages_get_messages_listing_cb messages_list;
+  		messages_get_message_cb message;
+! 		messages_status_cb status;
+  	} cb;
+  };
+  
+***************
+*** 1530,1540 ****
+  	session->request = NULL;
+  }
+  
+! int messages_set_message_status(void *s, const char *handle, uint8_t indicator,
+! 			uint8_t value, messages_set_message_status_cb callback,
+! 			void *user_data)
+  {
+! 	struct session *session = s;
+  	struct message_status *stat = NULL;
+  	int ret;
+  	struct request *request;
+--- 1530,1539 ----
+  	session->request = NULL;
+  }
+  
+! int messages_set_read(void *sess, const char *handle, uint8_t value,
+! 				messages_status_cb callback, void *user_data)
+  {
+! 	struct session *session = sess;
+  	struct message_status *stat = NULL;
+  	int ret;
+  	struct request *request;
+***************
+*** 1552,1582 ****
+  	request->user_data = user_data;
+  	session->request = request;
+  
+! 	switch (indicator) {
+! 		case 0x0:
+! 			ret = messages_qt_set_read(&request->set_status_call,
+! 						handle, value & 0x01,
+! 						messages_qt_callback, session);
+! 			if (ret < 0)
+! 				return ret;
+  
+! 			stat->read = value;
+! 			break;
+! 		case 0x1:
+! 			ret = messages_qt_set_deleted(&request->set_status_call,
+! 						handle, value & 0x01,
+! 						messages_qt_callback, session);
+! 			if (ret < 0)
+! 				return ret;
+  
+! 			stat->deleted = value;
+! 			break;
+! 		default:
+! 			g_free(request);
+! 			session->request = NULL;
+! 			return -EBADR;
+  	}
+  
+  	return 0;
+  }
+  
+--- 1551,1596 ----
+  	request->user_data = user_data;
+  	session->request = request;
+  
+! 	ret = messages_qt_set_read(&request->set_status_call,
+! 					handle, value & 0x01,
+! 					messages_qt_callback, session);
+! 	if (ret < 0)
+! 		return ret;
+  
+! 	stat->read = value;
+  
+! 	return 0;
+! }
+! 
+! int messages_set_delete(void *sess, const char *handle, uint8_t value,
+! 				messages_status_cb callback, void *user_data)
+! {
+! 	struct session *session = sess;
+! 	struct message_status *stat = NULL;
+! 	int ret;
+! 	struct request *request;
+! 
+! 	stat = g_hash_table_lookup(session->msg_stat, handle);
+! 	if (stat == NULL) {
+! 		stat = g_new0(struct message_status, 1);
+! 		stat->read = STATUS_NOT_SET;
+! 
+! 		g_hash_table_insert(session->msg_stat, g_strdup(handle), stat);
+  	}
+  
++ 	request = g_new0(struct request, 1);
++ 	request->cb.status = callback;
++ 	request->user_data = user_data;
++ 	session->request = request;
++ 
++ 	ret = messages_qt_set_deleted(&request->set_status_call,
++ 					handle, value & 0x01,
++ 					messages_qt_callback, session);
++ 	if (ret < 0)
++ 		return ret;
++ 
++ 	stat->deleted = value;
++ 
+  	return 0;
+  }
+  
+***************
+*** 2051,2057 ****
+  	return ret;
+  }
+  
+! int messages_update_inbox(void *session, messages_update_inbox_cb callback,
+  							void *user_data)
+  {
+  	return -ENOSYS;
+--- 2065,2071 ----
+  	return ret;
+  }
+  
+! int messages_update_inbox(void *session, messages_status_cb callback,
+  							void *user_data)
+  {
+  	return -ENOSYS;
+diff -cr plugins/messages.h plugins/messages.h
+*** plugins/messages.h	Thu Oct  4 09:02:57 2012
+--- plugins/messages.h	Fri Oct  5 03:27:48 2012
+***************
+*** 270,288 ****
+  typedef void (*messages_get_message_cb)(void *session, int err, gboolean fmore,
+  	const char *chunk, void *user_data);
+  
+- typedef void (*messages_set_message_status_cb)(void *session, int err,
+- 		void *user_data);
+- 
+  int messages_get_message(void *session, const char *handle,
+  					unsigned long flags,
+  					messages_get_message_cb callback,
+  					void *user_data);
+  
+- int messages_set_message_status(void *session, const char *handle,
+- 		uint8_t indicator, uint8_t value,
+- 		messages_set_message_status_cb callback,
+- 		void *user_data);
+- 
+  /* Push messages to the backend.
+   *
+   * session: Backend session.
+--- 270,280 ----
+***************
+*** 301,318 ****
+  
+  int messages_push_message_body(void *session, const char *body, size_t len);
+  
+  /* Informs Message Server to Update Inbox via network.
+   *
+   * session: Backend session.
+   * user_data: User data if any to be sent.
+   * Callback shall be called for every update inbox request recieved from MCE.
+   */
+- typedef void (*messages_update_inbox_cb)(void *session, int err,
+- 							void *user_data);
+  
+! int messages_update_inbox(void *session, messages_update_inbox_cb callback,
+  							void *user_data);
+  
+  /* Aborts currently pending request.
+   *
+   * session: Backend session.
+--- 293,338 ----
+  
+  int messages_push_message_body(void *session, const char *body, size_t len);
+  
++ /* Callback for status functions */
++ 
++ typedef void (*messages_status_cb)(void *session, int err, void *user_data);
++ 
+  /* Informs Message Server to Update Inbox via network.
+   *
+   * session: Backend session.
+   * user_data: User data if any to be sent.
+   * Callback shall be called for every update inbox request recieved from MCE.
+   */
+  
+! int messages_update_inbox(void *session, messages_status_cb callback,
+  							void *user_data);
+  
++ /* Informs Message Server to modify read status of a given message.
++  *
++  * session: Backend session.
++  * handle: Unique identifier to the message.
++  * value: Indicates the new value of the read status for a given message.
++  * Callback shall be called for every read status update request
++  *     recieved from MCE.
++  * user_data: User data if any to be sent.
++  */
++ 
++ int messages_set_read(void *session, const char *handle, uint8_t value,
++ 				messages_status_cb callback, void *user_data);
++ 
++ /* Informs Message Server to modify delete status of a given message.
++  *
++  * session: Backend session.
++  * handle: Unique identifier to the message.
++  * value: Indicates the new value of the delete status for a given message.
++  * Callback shall be called for every delete status update request
++  *     recieved from MCE.
++  * user_data: User data if any to be sent.
++  */
++ 
++ int messages_set_delete(void *session, const char *handle, uint8_t value,
++ 				messages_status_cb callback, void *user_data);
++ 
+  /* Aborts currently pending request.
+   *
+   * session: Backend session.
