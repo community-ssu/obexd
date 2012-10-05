@@ -1,0 +1,62 @@
+author	Luiz Augusto von Dentz <luiz.von.dentz@intel.com>
+commit	4e252d80d01c1caeddabf27d1a4045be6ccdc736
+	Tue, 25 Sep 2012 08:30:54 +0000 (11:30 +0300)
+
+client: Use larger timeout first packet in transfers
+
+This align the client timeout for GET operations with g_obex_get_req_pkt
+which does use 60 seconds to cover for extra interaction during the first
+packet.
+
+author	Srinivasa Ragavan <srinivasa.ragavan.venkateswaran@intel.com>
+commit	9f980d0b27ec080107609e3d320bde787a0fca5a
+	Thu, 4 Oct 2012 14:38:35 +0000 (17:38 +0300)
+
+client: Update the file offset to the beginning after writing to the file
+
+When the transfer file is opened in O_RDWR mode, just after the contents are
+written to the file, the file offset has to be set to the beginning of the
+file. If not subsequent read fails. This patch fixes this.
+
+diff -cr client/transfer.c client/transfer.c
+*** client/transfer.c	Tue Oct  2 04:11:18 2012
+--- client/transfer.c	Fri Oct  5 07:53:49 2012
+***************
+*** 46,51 ****
+--- 46,53 ----
+  
+  #define OBC_TRANSFER_ERROR obc_transfer_error_quark()
+  
++ #define FIRST_PACKET_TIMEOUT 60
++ 
+  static guint64 counter = 0;
+  
+  struct transfer_callback {
+***************
+*** 375,380 ****
+--- 377,383 ----
+  			perr = -EFAULT;
+  			goto fail;
+  		}
++ 		lseek(transfer->fd, 0, SEEK_SET);
+  	} else {
+  		if (!transfer_open(transfer, O_RDONLY, 0, err))
+  			goto fail;
+***************
+*** 572,578 ****
+  						transfer->params->data,
+  						transfer->params->size);
+  
+! 	transfer->xfer = g_obex_send_req(transfer->obex, req, -1,
+  						get_xfer_progress_first,
+  						transfer, err);
+  	if (transfer->xfer == 0)
+--- 575,582 ----
+  						transfer->params->data,
+  						transfer->params->size);
+  
+! 	transfer->xfer = g_obex_send_req(transfer->obex, req,
+! 						FIRST_PACKET_TIMEOUT,
+  						get_xfer_progress_first,
+  						transfer, err);
+  	if (transfer->xfer == 0)
