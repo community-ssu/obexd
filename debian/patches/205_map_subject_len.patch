@@ -1,0 +1,323 @@
+author	Sunil Kumar Behera <sunil.behera@samsung.com>
+commit	1de97d093e3b5c4c69e0892d2b91090f567c1dc4
+commit	24b6a4a77758aedbd24f5bb12f5be8256c4f11da
+	Mon, 20 Aug 2012 08:40:49 +0000 (11:40 +0300)
+
+MAP: Add offset parameter decription
+
+Add offset parameter description for
+messages_get_messages_listing() function header
+
+MAP: Add subject length parameter in GetMessageListing
+
+Add subject length parameter to allow MAP server to
+create subject as per MAP client length preference.
+
+diff -cr obexd-0.46.fix.orig/plugins/mas.c obexd-0.46.fix/plugins/mas.c
+*** obexd-0.46.fix.orig/plugins/mas.c	Thu Oct  4 08:32:54 2012
+--- obexd-0.46.fix/plugins/mas.c	Thu Oct  4 08:36:48 2012
+***************
+*** 964,969 ****
+--- 964,972 ----
+  	/* 1024 is the default when there was no MaxListCount sent */
+  	uint16_t max = 1024;
+  	uint16_t offset = 0;
++ 	/* If MAP client does not specify the subject length,
++ 	 * then subject_len = 0 and subject should be sent unaltered. */
++ 	uint8_t subject_len = 0;
+  
+  	DBG("");
+  
+***************
+*** 979,984 ****
+--- 982,988 ----
+  	map_ap_get_u16(mas->inparams, MAP_AP_MAXLISTCOUNT, &max);
+  	request->only_count = max > 0 ? FALSE : TRUE;
+  	map_ap_get_u16(mas->inparams, MAP_AP_STARTOFFSET, &offset);
++ 	map_ap_get_u8(mas->inparams, MAP_AP_SUBJECTLENGTH, &subject_len);
+  
+  	map_ap_get_u32(mas->inparams, MAP_AP_PARAMETERMASK,
+  						&request->filter.parameter_mask);
+***************
+*** 1007,1013 ****
+  						&request->filter.priority);
+  
+  	*err = messages_get_messages_listing(mas->backend_data, name, max,
+! 			offset, &request->filter,
+  			get_messages_listing_cb, mas);
+  
+  	if (*err < 0)
+--- 1011,1017 ----
+  						&request->filter.priority);
+  
+  	*err = messages_get_messages_listing(mas->backend_data, name, max,
+! 			offset, subject_len, &request->filter,
+  			get_messages_listing_cb, mas);
+  
+  	if (*err < 0)
+diff -cr obexd-0.46.fix.orig/plugins/messages-dummy.c obexd-0.46.fix/plugins/messages-dummy.c
+*** obexd-0.46.fix.orig/plugins/messages-dummy.c	Thu Oct  4 08:32:59 2012
+--- obexd-0.46.fix/plugins/messages-dummy.c	Thu Oct  4 08:38:46 2012
+***************
+*** 359,364 ****
+--- 359,365 ----
+  
+  int messages_get_messages_listing(void *session, const char *name,
+  				uint16_t max, uint16_t offset,
++ 				uint8_t subject_len,
+  				const struct messages_filter *filter,
+  				messages_get_messages_listing_cb callback,
+  				void *user_data)
+diff -cr obexd-0.46.fix.orig/plugins/messages-rtcom.c obexd-0.46.fix/plugins/messages-rtcom.c
+*** obexd-0.46.fix.orig/plugins/messages-rtcom.c	Thu Oct  4 08:32:59 2012
+--- obexd-0.46.fix/plugins/messages-rtcom.c	Thu Oct  4 09:01:00 2012
+***************
+*** 107,112 ****
+--- 107,113 ----
+  	uint16_t max;
+  	uint16_t offset;
+  	uint16_t size;
++ 	uint8_t subject_len;
+  	void *user_data;
+  	gboolean count;
+  	gboolean new_message;
+***************
+*** 517,523 ****
+  }
+  
+  static struct messages_message *pull_message_data(GArray *intvals,
+! 							char **strvals)
+  {
+  	time_t datetime;
+  	struct messages_message *data;
+--- 518,524 ----
+  }
+  
+  static struct messages_message *pull_message_data(GArray *intvals,
+! 					char **strvals, uint8_t subject_len)
+  {
+  	time_t datetime;
+  	struct messages_message *data;
+***************
+*** 531,537 ****
+  	data->handle = g_strdup_printf("%d",
+  			g_array_index(intvals, gint, RTCOM_MSG_ID));
+  		
+! 	data->subject = g_strdup(strvals[RTCOM_MSG_TEXT]);
+  
+  	data->mask |= PMASK_SUBJECT;
+  
+--- 532,541 ----
+  	data->handle = g_strdup_printf("%d",
+  			g_array_index(intvals, gint, RTCOM_MSG_ID));
+  		
+! 	if (subject_len == 0 || strlen(strvals[RTCOM_MSG_TEXT]))
+! 		data->subject = g_strdup(strvals[RTCOM_MSG_TEXT]);
+! 	else
+! 		data->subject = g_strndup(strvals[RTCOM_MSG_TEXT], subject_len);
+  
+  	data->mask |= PMASK_SUBJECT;
+  
+***************
+*** 634,640 ****
+  		GArray *intvals = (GArray *) g_ptr_array_index(inttable, index);
+  		char **strvals = (char **) g_ptr_array_index(strtable, index);
+  
+! 		if ((msg_data = pull_message_data(intvals, strvals)) == NULL)
+  			continue;
+  
+  		stat = g_hash_table_lookup(session->msg_stat, msg_data->handle);
+--- 638,645 ----
+  		GArray *intvals = (GArray *) g_ptr_array_index(inttable, index);
+  		char **strvals = (char **) g_ptr_array_index(strtable, index);
+  
+! 		if ((msg_data = pull_message_data(intvals, strvals,
+! 					request->subject_len)) == NULL)
+  			continue;
+  
+  		stat = g_hash_table_lookup(session->msg_stat, msg_data->handle);
+***************
+*** 721,727 ****
+  		goto end;
+  	}
+  
+! 	if ((msg_data = pull_message_data(intvals, strvals)) == NULL) {
+  		error("RTCOM query failed: wrong count of intvals or strvals records");
+  		err = -EINVAL;
+  
+--- 726,733 ----
+  		goto end;
+  	}
+  
+! 	if ((msg_data = pull_message_data(intvals, strvals,
+! 					request->subject_len)) == NULL) {
+  		error("RTCOM query failed: wrong count of intvals or strvals records");
+  		err = -EINVAL;
+  
+***************
+*** 1215,1220 ****
+--- 1221,1227 ----
+  
+  int messages_get_messages_listing(void *sess, const char *name,
+  				uint16_t max, uint16_t offset,
++ 				uint8_t subject_len,
+  				const struct messages_filter *filter,
+  				messages_get_messages_listing_cb callback,
+  				void *user_data)
+***************
+*** 1254,1259 ****
+--- 1261,1267 ----
+  	request->cb.messages_list = callback;
+  	request->offset = offset;
+  	request->max = max;
++ 	request->subject_len = subject_len;
+  	request->user_data = user_data;
+  	request->deleted = g_strcmp0(folder->name, "deleted") ? FALSE : TRUE;
+  
+diff -cr obexd-0.46.fix.orig/plugins/messages-tracker.c obexd-0.46.fix/plugins/messages-tracker.c
+*** obexd-0.46.fix.orig/plugins/messages-tracker.c	Thu Oct  4 08:33:03 2012
+--- obexd-0.46.fix/plugins/messages-tracker.c	Thu Oct  4 08:58:41 2012
+***************
+*** 153,158 ****
+--- 153,159 ----
+  	uint16_t max;
+  	uint16_t offset;
+  	uint16_t size;
++ 	uint8_t subject_len;
+  	void *user_data;
+  	gboolean count;
+  	gboolean new_message;
+***************
+*** 685,701 ****
+  	return local_time;
+  }
+  
+! static struct messages_message *pull_message_data(const char **reply)
+  {
+  	struct messages_message *data = g_new0(struct messages_message, 1);
+  
+  	data->handle = g_strdup(reply[MESSAGE_HANDLE] +
+  						MESSAGE_HANDLE_PREFIX_LEN);
+  
+! 	if (strlen(reply[MESSAGE_SUBJECT]) != 0)
+! 		data->subject = g_strdup(reply[MESSAGE_SUBJECT]);
+  	else
+! 		data->subject = g_strdup(reply[MESSAGE_CONTENT]);
+  
+  	data->mask |= PMASK_SUBJECT;
+  
+--- 686,710 ----
+  	return local_time;
+  }
+  
+! static struct messages_message *pull_message_data(const char **reply,
+! 							uint8_t subject_len)
+  {
+  	struct messages_message *data = g_new0(struct messages_message, 1);
++ 	char *subject;
++ 	int len;
+  
+  	data->handle = g_strdup(reply[MESSAGE_HANDLE] +
+  						MESSAGE_HANDLE_PREFIX_LEN);
+  
+! 	subject = reply[MESSAGE_SUBJECT];
+! 
+! 	if (subject == NULL || *subject == '\0')
+! 		subject = reply[MESSAGE_CONTENT];
+! 
+! 	if (subject_len == 0 || strlen(subject) <= subject_len)
+! 		data->subject = g_strdup(subject);
+  	else
+! 		data->subject = g_strndup(subject, subject_len);
+  
+  	data->mask |= PMASK_SUBJECT;
+  
+***************
+*** 779,785 ****
+  	if (session->aborted)
+  		goto aborted;
+  
+! 	msg_data = pull_message_data(reply);
+  
+  	stat = g_hash_table_lookup(session->msg_stat, msg_data->handle);
+  
+--- 788,794 ----
+  	if (session->aborted)
+  		goto aborted;
+  
+! 	msg_data = pull_message_data(reply, request->subject_len);
+  
+  	stat = g_hash_table_lookup(session->msg_stat, msg_data->handle);
+  
+***************
+*** 859,865 ****
+  	if (session->aborted)
+  		goto aborted;
+  
+! 	msg_data = pull_message_data(reply);
+  	handle = fill_handle(msg_data->handle);
+  	g_free(msg_data->handle);
+  	msg_data->handle = handle;
+--- 868,874 ----
+  	if (session->aborted)
+  		goto aborted;
+  
+! 	msg_data = pull_message_data(reply, request->subject_len);
+  	handle = fill_handle(msg_data->handle);
+  	g_free(msg_data->handle);
+  	msg_data->handle = handle;
+***************
+*** 1382,1390 ****
+  	return 0;
+  }
+  
+! int messages_get_messages_listing(void *session,
+! 				const char *name,
+  				uint16_t max, uint16_t offset,
+  				const struct messages_filter *filter,
+  				messages_get_messages_listing_cb callback,
+  				void *user_data)
+--- 1391,1399 ----
+  	return 0;
+  }
+  
+! int messages_get_messages_listing(void *session, const char *name,
+  				uint16_t max, uint16_t offset,
++ 				uint8_t subject_len,
+  				const struct messages_filter *filter,
+  				messages_get_messages_listing_cb callback,
+  				void *user_data)
+***************
+*** 1426,1431 ****
+--- 1435,1441 ----
+  	request->cb.messages_list = callback;
+  	request->offset = offset;
+  	request->max = max;
++ 	request->subject_len = subject_len;
+  	request->user_data = user_data;
+  	request->deleted = g_strcmp0(folder->name, "deleted") ? FALSE : TRUE;
+  
+diff -cr obexd-0.46.fix.orig/plugins/messages.h obexd-0.46.fix/plugins/messages.h
+*** obexd-0.46.fix.orig/plugins/messages.h	Thu Oct  4 08:33:08 2012
+--- obexd-0.46.fix/plugins/messages.h	Thu Oct  4 09:02:57 2012
+***************
+*** 220,225 ****
+--- 220,227 ----
+   * session: Backend session.
+   * name: Optional subdirectory name.
+   * max: Maximum number of entries to retrieve.
++  * offset: Offset of the first entry.
++  * subject_len: Maximum string length of the "subject" parameter in the entries.
+   * filter: Filter to apply on returned message listing.
+   * size: Total size of listing to be returned.
+   * newmsg: Indicates presence of unread messages.
+***************
+*** 234,239 ****
+--- 236,242 ----
+  
+  int messages_get_messages_listing(void *session, const char *name,
+  				uint16_t max, uint16_t offset,
++ 				uint8_t subject_len,
+  				const struct messages_filter *filter,
+  				messages_get_messages_listing_cb callback,
+  				void *user_data);
