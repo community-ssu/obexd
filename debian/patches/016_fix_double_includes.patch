@@ -1,0 +1,34 @@
+author	Syam Sidhardhan <s.syam@samsung.com>
+commit	c3ba482c1495c35ba75b400d7ff4d5ca022beb3f
+commit	e694d84bcdf3d63619d65aa39cc7edf95008e32b
+	Thu, 23 Aug 2012 14:00:12 +0000 (17:00 +0300)
+
+plugins: Remove redundant include sys/stat.h
+core: Remove redundant include errno.h
+
+diff -cr obexd-0.46.fix.orig/plugins/filesystem.c obexd-0.46.fix/plugins/filesystem.c
+*** obexd-0.46.fix.orig/plugins/filesystem.c	Tue Oct  2 04:11:18 2012
+--- obexd-0.46.fix/plugins/filesystem.c	Thu Oct  4 09:28:22 2012
+***************
+*** 32,38 ****
+  #include <string.h>
+  #include <unistd.h>
+  #include <dirent.h>
+- #include <sys/stat.h>
+  #include <sys/types.h>
+  #include <sys/stat.h>
+  #include <sys/statvfs.h>
+--- 32,37 ----
+diff -cr obexd-0.46.fix.orig/src/server.c obexd-0.46.fix/src/server.c
+*** obexd-0.46.fix.orig/src/server.c	Tue Oct  2 04:11:20 2012
+--- obexd-0.46.fix/src/server.c	Thu Oct  4 09:28:48 2012
+***************
+*** 31,37 ****
+  #include <stdlib.h>
+  #include <unistd.h>
+  #include <fcntl.h>
+- #include <errno.h>
+  #include <string.h>
+  #include <inttypes.h>
+  
+--- 31,36 ----
