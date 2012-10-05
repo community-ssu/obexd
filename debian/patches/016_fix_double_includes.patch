@@ -6,9 +6,9 @@ commit	e694d84bcdf3d63619d65aa39cc7edf95008e32b
 plugins: Remove redundant include sys/stat.h
 core: Remove redundant include errno.h
 
-diff -cr obexd-0.46.fix.orig/plugins/filesystem.c obexd-0.46.fix/plugins/filesystem.c
-*** obexd-0.46.fix.orig/plugins/filesystem.c	Tue Oct  2 04:11:18 2012
---- obexd-0.46.fix/plugins/filesystem.c	Thu Oct  4 09:28:22 2012
+diff -cr plugins/filesystem.c plugins/filesystem.c
+*** plugins/filesystem.c	Tue Oct  2 04:11:18 2012
+--- plugins/filesystem.c	Thu Oct  4 09:28:22 2012
 ***************
 *** 32,38 ****
   #include <string.h>
@@ -19,9 +19,9 @@ diff -cr obexd-0.46.fix.orig/plugins/filesystem.c obexd-0.46.fix/plugins/filesys
   #include <sys/stat.h>
   #include <sys/statvfs.h>
 --- 32,37 ----
-diff -cr obexd-0.46.fix.orig/src/server.c obexd-0.46.fix/src/server.c
-*** obexd-0.46.fix.orig/src/server.c	Tue Oct  2 04:11:20 2012
---- obexd-0.46.fix/src/server.c	Thu Oct  4 09:28:48 2012
+diff -cr src/server.c src/server.c
+*** src/server.c	Tue Oct  2 04:11:20 2012
+--- src/server.c	Thu Oct  4 09:28:48 2012
 ***************
 *** 31,37 ****
   #include <stdlib.h>

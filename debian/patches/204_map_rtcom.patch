@@ -1,6 +1,6 @@
-diff -crN obexd-0.46.cssu.orig/Makefile.am obexd-0.46.cssu/Makefile.am
-*** obexd-0.46.cssu.orig/Makefile.am	Tue Oct  2 04:24:18 2012
---- obexd-0.46.cssu/Makefile.am	Tue Oct  2 05:04:47 2012
+diff -crN Makefile.am Makefile.am
+*** Makefile.am	Tue Oct  2 04:24:18 2012
+--- Makefile.am	Tue Oct  2 05:04:47 2012
 ***************
 *** 10,16 ****
   test_files = test/simple-agent test/send-files \
@@ -89,9 +89,9 @@ diff -crN obexd-0.46.cssu.orig/Makefile.am obexd-0.46.cssu/Makefile.am
   
   DISTCHECK_CONFIGURE_FLAGS = --enable-client --enable-server
   
-diff -crN obexd-0.46.cssu.orig/Makefile.in obexd-0.46.cssu/Makefile.in
-*** obexd-0.46.cssu.orig/Makefile.in	Tue Oct  2 04:24:18 2012
---- obexd-0.46.cssu/Makefile.in	Tue Oct  2 05:04:47 2012
+diff -crN Makefile.in Makefile.in
+*** Makefile.in	Tue Oct  2 04:24:18 2012
+--- Makefile.in	Tue Oct  2 05:04:47 2012
 ***************
 *** 117,123 ****
   	client/opp.c client/map.h client/map.c client/transfer.h \
@@ -335,9 +335,9 @@ diff -crN obexd-0.46.cssu.orig/Makefile.in obexd-0.46.cssu/Makefile.in
   @AMDEP_TRUE@@am__include@ @am__quote@plugins/$(DEPDIR)/filesystem.Po@am__quote@
   @AMDEP_TRUE@@am__include@ @am__quote@plugins/$(DEPDIR)/ftp.Po@am__quote@
   @AMDEP_TRUE@@am__include@ @am__quote@plugins/$(DEPDIR)/irmc.Po@am__quote@
-diff -crN obexd-0.46.cssu.orig/client/manager.c obexd-0.46.cssu/client/manager.c
-*** obexd-0.46.cssu.orig/client/manager.c	Tue Oct  2 04:11:18 2012
---- obexd-0.46.cssu/client/manager.c	Tue Oct  2 04:37:04 2012
+diff -crN client/manager.c client/manager.c
+*** client/manager.c	Tue Oct  2 04:11:18 2012
+--- client/manager.c	Tue Oct  2 04:37:04 2012
 ***************
 *** 44,49 ****
 --- 44,50 ----
@@ -358,9 +358,9 @@ diff -crN obexd-0.46.cssu.orig/client/manager.c obexd-0.46.cssu/client/manager.c
   	{ }
   };
   
-diff -crN obexd-0.46.cssu.orig/client/mns.c obexd-0.46.cssu/client/mns.c
-*** obexd-0.46.cssu.orig/client/mns.c	Wed Dec 31 19:00:00 1969
---- obexd-0.46.cssu/client/mns.c	Tue Oct  2 04:37:04 2012
+diff -crN client/mns.c client/mns.c
+*** client/mns.c	Wed Dec 31 19:00:00 1969
+--- client/mns.c	Tue Oct  2 04:37:04 2012
 ***************
 *** 0 ****
 --- 1,350 ----
@@ -714,9 +714,9 @@ diff -crN obexd-0.46.cssu.orig/client/mns.c obexd-0.46.cssu/client/mns.c
 + 
 + 	obc_driver_unregister(&mns);
 + }
-diff -crN obexd-0.46.cssu.orig/client/mns.h obexd-0.46.cssu/client/mns.h
-*** obexd-0.46.cssu.orig/client/mns.h	Wed Dec 31 19:00:00 1969
---- obexd-0.46.cssu/client/mns.h	Tue Oct  2 04:37:04 2012
+diff -crN client/mns.h client/mns.h
+*** client/mns.h	Wed Dec 31 19:00:00 1969
+--- client/mns.h	Tue Oct  2 04:37:04 2012
 ***************
 *** 0 ****
 --- 1,35 ----
@@ -755,9 +755,9 @@ diff -crN obexd-0.46.cssu.orig/client/mns.h obexd-0.46.cssu/client/mns.h
 + 
 + int mns_init(void);
 + void mns_exit(void);
-diff -crN obexd-0.46.cssu.orig/configure obexd-0.46.cssu/configure
-*** obexd-0.46.cssu.orig/configure	Tue Oct  2 04:24:19 2012
---- obexd-0.46.cssu/configure	Tue Oct  2 05:04:47 2012
+diff -crN configure configure
+*** configure	Tue Oct  2 04:24:19 2012
+--- configure	Tue Oct  2 05:04:47 2012
 ***************
 *** 656,661 ****
 --- 656,667 ----
@@ -1084,9 +1084,9 @@ diff -crN obexd-0.46.cssu.orig/configure obexd-0.46.cssu/configure
   fi
   
   
-diff -crN obexd-0.46.cssu.orig/configure.ac obexd-0.46.cssu/configure.ac
-*** obexd-0.46.cssu.orig/configure.ac	Tue Oct  2 04:24:19 2012
---- obexd-0.46.cssu/configure.ac	Tue Oct  2 05:04:47 2012
+diff -crN configure.ac configure.ac
+*** configure.ac	Tue Oct  2 04:24:19 2012
+--- configure.ac	Tue Oct  2 05:04:47 2012
 ***************
 *** 113,126 ****
 --- 113,140 ----
@@ -1118,9 +1118,9 @@ diff -crN obexd-0.46.cssu.orig/configure.ac obexd-0.46.cssu/configure.ac
   AC_SUBST([MESSAGES_DRIVER], [messages-${messages_driver}.c])
   
   phonebook_driver=dummy
-diff -crN obexd-0.46.cssu.orig/messages-qt/messagepusher.cpp obexd-0.46.cssu/messages-qt/messagepusher.cpp
-*** obexd-0.46.cssu.orig/messages-qt/messagepusher.cpp	Wed Dec 31 19:00:00 1969
---- obexd-0.46.cssu/messages-qt/messagepusher.cpp	Tue Oct  2 04:37:04 2012
+diff -crN messages-qt/messagepusher.cpp messages-qt/messagepusher.cpp
+*** messages-qt/messagepusher.cpp	Wed Dec 31 19:00:00 1969
+--- messages-qt/messagepusher.cpp	Tue Oct  2 04:37:04 2012
 ***************
 *** 0 ****
 --- 1,200 ----
@@ -1324,9 +1324,9 @@ diff -crN obexd-0.46.cssu.orig/messages-qt/messagepusher.cpp obexd-0.46.cssu/mes
 + 
 + 	return 0;
 + }
-diff -crN obexd-0.46.cssu.orig/messages-qt/messagepusher.h obexd-0.46.cssu/messages-qt/messagepusher.h
-*** obexd-0.46.cssu.orig/messages-qt/messagepusher.h	Wed Dec 31 19:00:00 1969
---- obexd-0.46.cssu/messages-qt/messagepusher.h	Tue Oct  2 04:37:04 2012
+diff -crN messages-qt/messagepusher.h messages-qt/messagepusher.h
+*** messages-qt/messagepusher.h	Wed Dec 31 19:00:00 1969
+--- messages-qt/messagepusher.h	Tue Oct  2 04:37:04 2012
 ***************
 *** 0 ****
 --- 1,41 ----
@@ -1371,9 +1371,9 @@ diff -crN obexd-0.46.cssu.orig/messages-qt/messagepusher.h obexd-0.46.cssu/messa
 + 	void groupsCommitted(const QList<int> &ids, bool success);
 + 	void modelReady(bool success);
 + };
-diff -crN obexd-0.46.cssu.orig/messages-qt/messages-qt-log.h obexd-0.46.cssu/messages-qt/messages-qt-log.h
-*** obexd-0.46.cssu.orig/messages-qt/messages-qt-log.h	Wed Dec 31 19:00:00 1969
---- obexd-0.46.cssu/messages-qt/messages-qt-log.h	Tue Oct  2 04:37:04 2012
+diff -crN messages-qt/messages-qt-log.h messages-qt/messages-qt-log.h
+*** messages-qt/messages-qt-log.h	Wed Dec 31 19:00:00 1969
+--- messages-qt/messages-qt-log.h	Tue Oct  2 04:37:04 2012
 ***************
 *** 0 ****
 --- 1,11 ----
@@ -1388,9 +1388,9 @@ diff -crN obexd-0.46.cssu.orig/messages-qt/messages-qt-log.h obexd-0.46.cssu/mes
 + #undef DBG
 + #endif
 + #define DBG(fmt, arg...) obex_debug("%s:%s() " fmt,  __FILE__, __FUNCTION__ , ## arg)
-diff -crN obexd-0.46.cssu.orig/messages-qt/messages-qt.cpp obexd-0.46.cssu/messages-qt/messages-qt.cpp
-*** obexd-0.46.cssu.orig/messages-qt/messages-qt.cpp	Wed Dec 31 19:00:00 1969
---- obexd-0.46.cssu/messages-qt/messages-qt.cpp	Tue Oct  2 04:37:04 2012
+diff -crN messages-qt/messages-qt.cpp messages-qt/messages-qt.cpp
+*** messages-qt/messages-qt.cpp	Wed Dec 31 19:00:00 1969
+--- messages-qt/messages-qt.cpp	Tue Oct  2 04:37:04 2012
 ***************
 *** 0 ****
 --- 1,112 ----
@@ -1506,9 +1506,9 @@ diff -crN obexd-0.46.cssu.orig/messages-qt/messages-qt.cpp obexd-0.46.cssu/messa
 + 
 + 	return 0;
 + }
-diff -crN obexd-0.46.cssu.orig/messages-qt/messages-qt.h obexd-0.46.cssu/messages-qt/messages-qt.h
-*** obexd-0.46.cssu.orig/messages-qt/messages-qt.h	Wed Dec 31 19:00:00 1969
---- obexd-0.46.cssu/messages-qt/messages-qt.h	Tue Oct  2 04:37:04 2012
+diff -crN messages-qt/messages-qt.h messages-qt/messages-qt.h
+*** messages-qt/messages-qt.h	Wed Dec 31 19:00:00 1969
+--- messages-qt/messages-qt.h	Tue Oct  2 04:37:04 2012
 ***************
 *** 0 ****
 --- 1,24 ----
@@ -1536,9 +1536,9 @@ diff -crN obexd-0.46.cssu.orig/messages-qt/messages-qt.h obexd-0.46.cssu/message
 + #ifdef __cplusplus
 + }
 + #endif
-diff -crN obexd-0.46.cssu.orig/messages-qt/messages-qt.pro obexd-0.46.cssu/messages-qt/messages-qt.pro
-*** obexd-0.46.cssu.orig/messages-qt/messages-qt.pro	Wed Dec 31 19:00:00 1969
---- obexd-0.46.cssu/messages-qt/messages-qt.pro	Tue Oct  2 04:37:04 2012
+diff -crN messages-qt/messages-qt.pro messages-qt/messages-qt.pro
+*** messages-qt/messages-qt.pro	Wed Dec 31 19:00:00 1969
+--- messages-qt/messages-qt.pro	Tue Oct  2 04:37:04 2012
 ***************
 *** 0 ****
 --- 1,19 ----
@@ -1561,9 +1561,9 @@ diff -crN obexd-0.46.cssu.orig/messages-qt/messages-qt.pro obexd-0.46.cssu/messa
 + mc.depends = 
 + 
 + QMAKE_EXTRA_TARGETS += mc
-diff -crN obexd-0.46.cssu.orig/messages-qt/messageupdater.cpp obexd-0.46.cssu/messages-qt/messageupdater.cpp
-*** obexd-0.46.cssu.orig/messages-qt/messageupdater.cpp	Wed Dec 31 19:00:00 1969
---- obexd-0.46.cssu/messages-qt/messageupdater.cpp	Tue Oct  2 04:37:04 2012
+diff -crN messages-qt/messageupdater.cpp messages-qt/messageupdater.cpp
+*** messages-qt/messageupdater.cpp	Wed Dec 31 19:00:00 1969
+--- messages-qt/messageupdater.cpp	Tue Oct  2 04:37:04 2012
 ***************
 *** 0 ****
 --- 1,179 ----
@@ -1746,9 +1746,9 @@ diff -crN obexd-0.46.cssu.orig/messages-qt/messageupdater.cpp obexd-0.46.cssu/me
 + 
 + 	return 0;
 + }
-diff -crN obexd-0.46.cssu.orig/messages-qt/messageupdater.h obexd-0.46.cssu/messages-qt/messageupdater.h
-*** obexd-0.46.cssu.orig/messages-qt/messageupdater.h	Wed Dec 31 19:00:00 1969
---- obexd-0.46.cssu/messages-qt/messageupdater.h	Tue Oct  2 04:37:04 2012
+diff -crN messages-qt/messageupdater.h messages-qt/messageupdater.h
+*** messages-qt/messageupdater.h	Wed Dec 31 19:00:00 1969
+--- messages-qt/messageupdater.h	Tue Oct  2 04:37:04 2012
 ***************
 *** 0 ****
 --- 1,39 ----
@@ -1791,9 +1791,9 @@ diff -crN obexd-0.46.cssu.orig/messages-qt/messageupdater.h obexd-0.46.cssu/mess
 + 								bool success);
 + 	void modelReady(bool success);
 + };
-diff -crN obexd-0.46.cssu.orig/messages-qt/test/messages-qt-test.pro obexd-0.46.cssu/messages-qt/test/messages-qt-test.pro
-*** obexd-0.46.cssu.orig/messages-qt/test/messages-qt-test.pro	Wed Dec 31 19:00:00 1969
---- obexd-0.46.cssu/messages-qt/test/messages-qt-test.pro	Tue Oct  2 04:37:04 2012
+diff -crN messages-qt/test/messages-qt-test.pro messages-qt/test/messages-qt-test.pro
+*** messages-qt/test/messages-qt-test.pro	Wed Dec 31 19:00:00 1969
+--- messages-qt/test/messages-qt-test.pro	Tue Oct  2 04:37:04 2012
 ***************
 *** 0 ****
 --- 1,20 ----
@@ -1817,9 +1817,9 @@ diff -crN obexd-0.46.cssu.orig/messages-qt/test/messages-qt-test.pro obexd-0.46.
 + mc.depends = 
 + 
 + QMAKE_EXTRA_TARGETS += mc
-diff -crN obexd-0.46.cssu.orig/messages-qt/test/test.cpp obexd-0.46.cssu/messages-qt/test/test.cpp
-*** obexd-0.46.cssu.orig/messages-qt/test/test.cpp	Wed Dec 31 19:00:00 1969
---- obexd-0.46.cssu/messages-qt/test/test.cpp	Tue Oct  2 04:37:04 2012
+diff -crN messages-qt/test/test.cpp messages-qt/test/test.cpp
+*** messages-qt/test/test.cpp	Wed Dec 31 19:00:00 1969
+--- messages-qt/test/test.cpp	Tue Oct  2 04:37:04 2012
 ***************
 *** 0 ****
 --- 1,114 ----
@@ -1937,9 +1937,9 @@ diff -crN obexd-0.46.cssu.orig/messages-qt/test/test.cpp obexd-0.46.cssu/message
 + 
 + 	messages_qt_exit();
 + }
-diff -crN obexd-0.46.cssu.orig/plugins/bmsg.c obexd-0.46.cssu/plugins/bmsg.c
-*** obexd-0.46.cssu.orig/plugins/bmsg.c	Wed Dec 31 19:00:00 1969
---- obexd-0.46.cssu/plugins/bmsg.c	Tue Oct  2 04:37:04 2012
+diff -crN plugins/bmsg.c plugins/bmsg.c
+*** plugins/bmsg.c	Wed Dec 31 19:00:00 1969
+--- plugins/bmsg.c	Tue Oct  2 04:37:04 2012
 ***************
 *** 0 ****
 --- 1,272 ----
@@ -2215,9 +2215,9 @@ diff -crN obexd-0.46.cssu.orig/plugins/bmsg.c obexd-0.46.cssu/plugins/bmsg.c
 + 
 + 	return ret;
 + }
-diff -crN obexd-0.46.cssu.orig/plugins/bmsg.h obexd-0.46.cssu/plugins/bmsg.h
-*** obexd-0.46.cssu.orig/plugins/bmsg.h	Wed Dec 31 19:00:00 1969
---- obexd-0.46.cssu/plugins/bmsg.h	Tue Oct  2 04:37:04 2012
+diff -crN plugins/bmsg.h plugins/bmsg.h
+*** plugins/bmsg.h	Wed Dec 31 19:00:00 1969
+--- plugins/bmsg.h	Tue Oct  2 04:37:04 2012
 ***************
 *** 0 ****
 --- 1,88 ----
@@ -2309,9 +2309,9 @@ diff -crN obexd-0.46.cssu.orig/plugins/bmsg.h obexd-0.46.cssu/plugins/bmsg.h
 + 			char *charset, char *lang, const char* content);
 + struct bmsg * bmsg_parse(char *string);
 + char * bmsg_text(struct bmsg *msg);
-diff -crN obexd-0.46.cssu.orig/plugins/bmsg_parser.c obexd-0.46.cssu/plugins/bmsg_parser.c
-*** obexd-0.46.cssu.orig/plugins/bmsg_parser.c	Wed Dec 31 19:00:00 1969
---- obexd-0.46.cssu/plugins/bmsg_parser.c	Tue Oct  2 04:37:04 2012
+diff -crN plugins/bmsg_parser.c plugins/bmsg_parser.c
+*** plugins/bmsg_parser.c	Wed Dec 31 19:00:00 1969
+--- plugins/bmsg_parser.c	Tue Oct  2 04:37:04 2012
 ***************
 *** 0 ****
 --- 1,702 ----
@@ -3017,9 +3017,9 @@ diff -crN obexd-0.46.cssu.orig/plugins/bmsg_parser.c obexd-0.46.cssu/plugins/bms
 + 	return TRUE;
 + }
 + 
-diff -crN obexd-0.46.cssu.orig/plugins/bmsg_parser.h obexd-0.46.cssu/plugins/bmsg_parser.h
-*** obexd-0.46.cssu.orig/plugins/bmsg_parser.h	Wed Dec 31 19:00:00 1969
---- obexd-0.46.cssu/plugins/bmsg_parser.h	Tue Oct  2 04:37:04 2012
+diff -crN plugins/bmsg_parser.h plugins/bmsg_parser.h
+*** plugins/bmsg_parser.h	Wed Dec 31 19:00:00 1969
+--- plugins/bmsg_parser.h	Tue Oct  2 04:37:04 2012
 ***************
 *** 0 ****
 --- 1,96 ----
@@ -3119,9 +3119,9 @@ diff -crN obexd-0.46.cssu.orig/plugins/bmsg_parser.h obexd-0.46.cssu/plugins/bms
 + 
 + 
 + #endif
-diff -crN obexd-0.46.cssu.orig/plugins/mas.c obexd-0.46.cssu/plugins/mas.c
-*** obexd-0.46.cssu.orig/plugins/mas.c	Tue Oct  2 04:11:18 2012
---- obexd-0.46.cssu/plugins/mas.c	Tue Oct  2 05:02:12 2012
+diff -crN plugins/mas.c plugins/mas.c
+*** plugins/mas.c	Tue Oct  2 04:11:18 2012
+--- plugins/mas.c	Tue Oct  2 05:02:12 2012
 ***************
 *** 44,49 ****
 --- 44,50 ----
@@ -4864,9 +4864,9 @@ diff -crN obexd-0.46.cssu.orig/plugins/mas.c obexd-0.46.cssu/plugins/mas.c
   	obex_service_driver_unregister(&mas);
   
   	for (i = 0; map_drivers[i] != NULL; ++i)
-diff -crN obexd-0.46.cssu.orig/plugins/messages-dummy.c obexd-0.46.cssu/plugins/messages-dummy.c
-*** obexd-0.46.cssu.orig/plugins/messages-dummy.c	Tue Oct  2 04:23:38 2012
---- obexd-0.46.cssu/plugins/messages-dummy.c	Tue Oct  2 05:04:08 2012
+diff -crN plugins/messages-dummy.c plugins/messages-dummy.c
+*** plugins/messages-dummy.c	Tue Oct  2 04:23:38 2012
+--- plugins/messages-dummy.c	Tue Oct  2 05:04:08 2012
 ***************
 *** 42,47 ****
 --- 42,49 ----
@@ -4985,9 +4985,9 @@ diff -crN obexd-0.46.cssu.orig/plugins/messages-dummy.c obexd-0.46.cssu/plugins/
   		session->request = NULL;
   	}
   }
-diff -crN obexd-0.46.cssu.orig/plugins/messages-rtcom.c obexd-0.46.cssu/plugins/messages-rtcom.c
-*** obexd-0.46.cssu.orig/plugins/messages-rtcom.c	Wed Dec 31 19:00:00 1969
---- obexd-0.46.cssu/plugins/messages-rtcom.c	Tue Oct  2 05:02:12 2012
+diff -crN plugins/messages-rtcom.c plugins/messages-rtcom.c
+*** plugins/messages-rtcom.c	Wed Dec 31 19:00:00 1969
+--- plugins/messages-rtcom.c	Tue Oct  2 05:02:12 2012
 ***************
 *** 0 ****
 --- 1,1933 ----
@@ -6924,9 +6924,9 @@ diff -crN obexd-0.46.cssu.orig/plugins/messages-rtcom.c obexd-0.46.cssu/plugins/
 + 	session->abort_request = NULL;
 + 	session->request_data = NULL;
 + }
-diff -crN obexd-0.46.cssu.orig/plugins/messages-tracker.c obexd-0.46.cssu/plugins/messages-tracker.c
-*** obexd-0.46.cssu.orig/plugins/messages-tracker.c	Tue Oct  2 04:11:18 2012
---- obexd-0.46.cssu/plugins/messages-tracker.c	Tue Oct  2 05:02:12 2012
+diff -crN plugins/messages-tracker.c plugins/messages-tracker.c
+*** plugins/messages-tracker.c	Tue Oct  2 04:11:18 2012
+--- plugins/messages-tracker.c	Tue Oct  2 05:02:12 2012
 ***************
 *** 29,35 ****
 --- 29,133 ----
@@ -9069,9 +9069,9 @@ diff -crN obexd-0.46.cssu.orig/plugins/messages-tracker.c obexd-0.46.cssu/plugin
 ! 	session->abort_request = NULL;
 ! 	session->request_data = NULL;
   }
-diff -crN obexd-0.46.cssu.orig/plugins/messages.h obexd-0.46.cssu/plugins/messages.h
-*** obexd-0.46.cssu.orig/plugins/messages.h	Tue Oct  2 04:11:18 2012
---- obexd-0.46.cssu/plugins/messages.h	Tue Oct  2 04:37:04 2012
+diff -crN plugins/messages.h plugins/messages.h
+*** plugins/messages.h	Tue Oct  2 04:11:18 2012
+--- plugins/messages.h	Tue Oct  2 04:37:04 2012
 ***************
 *** 24,29 ****
 --- 24,31 ----
@@ -9168,9 +9168,9 @@ diff -crN obexd-0.46.cssu.orig/plugins/messages.h obexd-0.46.cssu/plugins/messag
   /* Informs Message Server to Update Inbox via network.
    *
    * session: Backend session.
-diff -crN obexd-0.46.cssu.orig/test/mns-client obexd-0.46.cssu/test/mns-client
-*** obexd-0.46.cssu.orig/test/mns-client	Wed Dec 31 19:00:00 1969
---- obexd-0.46.cssu/test/mns-client	Tue Oct  2 04:37:04 2012
+diff -crN test/mns-client test/mns-client
+*** test/mns-client	Wed Dec 31 19:00:00 1969
+--- test/mns-client	Tue Oct  2 04:37:04 2012
 ***************
 *** 0 ****
 --- 1,26 ----

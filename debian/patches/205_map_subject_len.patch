@@ -13,9 +13,9 @@ MAP: Add subject length parameter in GetMessageListing
 Add subject length parameter to allow MAP server to
 create subject as per MAP client length preference.
 
-diff -cr obexd-0.46.fix.orig/plugins/mas.c obexd-0.46.fix/plugins/mas.c
-*** obexd-0.46.fix.orig/plugins/mas.c	Thu Oct  4 08:32:54 2012
---- obexd-0.46.fix/plugins/mas.c	Thu Oct  4 08:36:48 2012
+diff -cr plugins/mas.c plugins/mas.c
+*** plugins/mas.c	Thu Oct  4 08:32:54 2012
+--- plugins/mas.c	Thu Oct  4 08:36:48 2012
 ***************
 *** 964,969 ****
 --- 964,972 ----
@@ -55,9 +55,9 @@ diff -cr obexd-0.46.fix.orig/plugins/mas.c obexd-0.46.fix/plugins/mas.c
   			get_messages_listing_cb, mas);
   
   	if (*err < 0)
-diff -cr obexd-0.46.fix.orig/plugins/messages-dummy.c obexd-0.46.fix/plugins/messages-dummy.c
-*** obexd-0.46.fix.orig/plugins/messages-dummy.c	Thu Oct  4 08:32:59 2012
---- obexd-0.46.fix/plugins/messages-dummy.c	Thu Oct  4 08:38:46 2012
+diff -cr plugins/messages-dummy.c plugins/messages-dummy.c
+*** plugins/messages-dummy.c	Thu Oct  4 08:32:59 2012
+--- plugins/messages-dummy.c	Thu Oct  4 08:38:46 2012
 ***************
 *** 359,364 ****
 --- 359,365 ----
@@ -68,9 +68,9 @@ diff -cr obexd-0.46.fix.orig/plugins/messages-dummy.c obexd-0.46.fix/plugins/mes
   				const struct messages_filter *filter,
   				messages_get_messages_listing_cb callback,
   				void *user_data)
-diff -cr obexd-0.46.fix.orig/plugins/messages-rtcom.c obexd-0.46.fix/plugins/messages-rtcom.c
-*** obexd-0.46.fix.orig/plugins/messages-rtcom.c	Thu Oct  4 08:32:59 2012
---- obexd-0.46.fix/plugins/messages-rtcom.c	Thu Oct  4 09:01:00 2012
+diff -cr plugins/messages-rtcom.c plugins/messages-rtcom.c
+*** plugins/messages-rtcom.c	Thu Oct  4 08:32:59 2012
+--- plugins/messages-rtcom.c	Thu Oct  4 09:01:00 2012
 ***************
 *** 107,112 ****
 --- 107,113 ----
@@ -174,9 +174,9 @@ diff -cr obexd-0.46.fix.orig/plugins/messages-rtcom.c obexd-0.46.fix/plugins/mes
   	request->user_data = user_data;
   	request->deleted = g_strcmp0(folder->name, "deleted") ? FALSE : TRUE;
   
-diff -cr obexd-0.46.fix.orig/plugins/messages-tracker.c obexd-0.46.fix/plugins/messages-tracker.c
-*** obexd-0.46.fix.orig/plugins/messages-tracker.c	Thu Oct  4 08:33:03 2012
---- obexd-0.46.fix/plugins/messages-tracker.c	Thu Oct  4 08:58:41 2012
+diff -cr plugins/messages-tracker.c plugins/messages-tracker.c
+*** plugins/messages-tracker.c	Thu Oct  4 08:33:03 2012
+--- plugins/messages-tracker.c	Thu Oct  4 08:58:41 2012
 ***************
 *** 153,158 ****
 --- 153,159 ----
@@ -297,9 +297,9 @@ diff -cr obexd-0.46.fix.orig/plugins/messages-tracker.c obexd-0.46.fix/plugins/m
   	request->user_data = user_data;
   	request->deleted = g_strcmp0(folder->name, "deleted") ? FALSE : TRUE;
   
-diff -cr obexd-0.46.fix.orig/plugins/messages.h obexd-0.46.fix/plugins/messages.h
-*** obexd-0.46.fix.orig/plugins/messages.h	Thu Oct  4 08:33:08 2012
---- obexd-0.46.fix/plugins/messages.h	Thu Oct  4 09:02:57 2012
+diff -cr plugins/messages.h plugins/messages.h
+*** plugins/messages.h	Thu Oct  4 08:33:08 2012
+--- plugins/messages.h	Thu Oct  4 09:02:57 2012
 ***************
 *** 220,225 ****
 --- 220,227 ----
