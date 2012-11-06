@@ -1,6 +1,6 @@
 diff -cr plugins/irmc.c plugins/irmc.c
-*** plugins/irmc.c	Wed Aug  8 05:03:25 2012
---- plugins/irmc.c	Thu Aug  9 15:18:12 2012
+*** plugins/irmc.c	Mon Nov  5 03:06:41 2012
+--- plugins/irmc.c	Tue Nov  6 04:44:06 2012
 ***************
 *** 281,287 ****
   	return -EBADR;
@@ -150,9 +150,9 @@ diff -cr plugins/irmc.c plugins/irmc.c
   				"Maximum-Records:%d\r\n"
   				"IEL:2\r\n"
 ! 				"DID:%s\r\n"
-+ 				"ICL:YES\r\n"
-+ 				"OCL:YES\r\n"
-+ 				"MCL:YES\r\n",
+! 				"ICL:YES\r\n"
+! 				"OCL:YES\r\n"
+! 				"MCL:YES\r\n",
   				irmc->params->maxlistcount,
   				irmc->params->maxlistcount, irmc->did);
   
@@ -256,7 +256,7 @@ diff -cr plugins/irmc.c plugins/irmc.c
 ! 	if (name == NULL || strncmp(name, "telecom/", 8) != 0) {
 ! 		ret = -EBADR;
   		goto fail;
-- 	}
+  	}
   
 ! 	p = name + 8;
 ! 	if (!g_strcmp0(p, "devinfo.txt"))
@@ -270,44 +270,54 @@ diff -cr plugins/irmc.c plugins/irmc.c
   
   fail:
   	if (err)
---- 406,445 ----
+--- 406,455 ----
   		ret = -EPERM;
   		goto fail;
   	}
+! 
 ! 	if (p == NULL)
 ! 	       goto fail;
 ! 	if (*p == '/')
 ! 		++p;
 ! 	if (strncmp(p, "telecom/", 8) != 0)
   		goto fail;
++ 
++ 	p += 8;
++ 	if (g_str_equal(p, "devinfo.txt")) {
++ 		ret = irmc_open_devinfo(irmc);
++ 	} else if (g_str_has_prefix(p, "pb")) {
++ 		p += 2;
++ 
++ 		if (g_str_equal(p, ".vcf"))
++ 			ret = irmc_open_pb("/telecom/pb.vcf", irmc);
++ 		else if (*p == '/') {
++ 			++p;
++ 
++ 			if (g_str_equal(p, "info.log"))
++ 				ret = irmc_open_info(irmc);
++ 			else if (g_str_has_prefix(p, "luid/")) {
++ 				p += 5;
++ 
++ 				if (g_str_equal(p, "cc.log"))
++ 					ret = irmc_open_cc(irmc);
++ 				else
++ 					ret = irmc_open_luid(irmc);
++ 			}
++ 		}
++ 	} else if (g_str_equal(p, "ich.vcf")) {
++ 		ret = irmc_open_pb("/telecom/ich.vcf", irmc);
++ 	} else if (g_str_equal(p, "och.vcf")) {
++ 		ret = irmc_open_pb("/telecom/och.vcf", irmc);
++ 	} else if (g_str_equal(p, "mch.vcf")) {
++ 		ret = irmc_open_pb("/telecom/mch.vcf", irmc);
++ 	} else if (g_str_has_prefix(p, "cal")) {
++ 		ret = irmc_open_cal(irmc);
++ 	} else if (g_str_has_prefix(p, "nt")) {
++ 		ret = irmc_open_nt(irmc);
+  	}
   
-! 	p += 8;
-! 	if (g_str_equal(p, "devinfo.txt")) {
-! 		ret = irmc_open_devinfo(irmc);
-! 	} else if (g_str_has_prefix(p, "pb")) {
-! 		p += 2;
-! 		if (g_str_equal(p, ".vcf"))
-! 			ret = irmc_open_pb("/telecom/pb.vcf", irmc);
-! 		else if (*p == '/') {
-! 			++p;
-! 			if (g_str_equal(p, "info.log"))
-! 				ret = irmc_open_info(irmc);
-! 			else if (g_str_equal(p, "luid/cc.log"))
-! 				ret = irmc_open_cc(irmc);
-! 		}
-! 	} else if (g_str_equal(p, "ich.vcf")) {
-! 		ret = irmc_open_pb("/telecom/ich.vcf", irmc);
-! 	} else if (g_str_equal(p, "och.vcf")) {
-! 		ret = irmc_open_pb("/telecom/och.vcf", irmc);
-! 	} else if (g_str_equal(p, "mch.vcf")) {
-! 		ret = irmc_open_pb("/telecom/mch.vcf", irmc);
-! 	} else if (g_str_has_prefix(p, "cal")) {
-! 		ret = irmc_open_cal(irmc);
-! 	} else if (g_str_has_prefix(p, "nt")) {
-! 		ret = irmc_open_nt(irmc);
-! 	} else if (g_str_has_prefix(p, "luid")) {
-! 		ret = irmc_open_luid(irmc);
-! 	}
+! 	if (ret >= 0)
+! 		return irmc;
   
   fail:
   	if (err)
