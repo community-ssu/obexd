@@ -28,7 +28,7 @@ Description: D-Bus OBEX client
 
 Package: obexd
 Section: net
-Depends: ${shlibs:Depends}, ${misc:Depends}
+Depends: ${shlibs:Depends}, ${misc:Depends}, kernel-feature-errata-430973-workaround[armel]
 Conflicts: obex-data-server, obexd2
 Replaces: obexd2
 Architecture: any
@@ -44,7 +44,7 @@ Description: D-Bus OBEX server
 Package: obexd-test
 Architecture: any
 Priority: extra
-Depends: obexd (= ${binary:Version}), python, python2.5-gobject, python2.5-dbus
+Depends: obexd (= ${binary:Version}), python, python2.5-gobject, python2.5-dbus, kernel-feature-errata-430973-workaround[armel]
 Description: testing tools for obexd
  This package contains test tools for testing obexd
 
