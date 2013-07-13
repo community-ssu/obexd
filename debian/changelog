@@ -1,3 +1,16 @@
+obexd (0.46-1maemo5+0cssu2+thumb0) unstable; urgency=low
+
+  * Thumb2 compile
+
+ -- Ivaylo Dimitrov <freemangordon@abv.bg>  Sat, 13 Jul 2013 14:54:33 +0300
+
+obexd (0.46-1maemo5+0cssu2) unstable; urgency=low
+
+  * Remove direct L2CAP support from OPP and FTP profiles
+    This caused non-workable OPP and FTP over L2CAP
+
+ -- Ludek Finstrle <luf@pzkagis.cz>  Thu, 07 Mar 2013 0:33:19 +0100
+
 obexd (0.46-1maemo5+0cssu1+thumb0) unstable; urgency=low
 
   * Thumb2 compile
@@ -9,7 +22,7 @@ obexd (0.46-1maemo5+0cssu1) unstable; urgency=low
   * Fix critical bug in IrMC (introduced in 0.46-1maemo3)
   * Fix handling client PBAP path
 
- -- Ludek Finstrle <luf@pzkagis.cz>  Thu, 06 Nov 2012 10:57:54 +0100
+ -- Ludek Finstrle <luf@pzkagis.cz>  Thu, 06 Oct 2012 10:57:54 +0100
 
 obexd (0.46-1maemo4+0cssu1) unstable; urgency=low
 

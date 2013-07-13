@@ -1,0 +1,60 @@
+diff -ur obexd-0.46.fix.orig/plugins/ftp.c obexd-0.46.fix/plugins/ftp.c
+--- obexd-0.46.fix.orig/plugins/ftp.c	2012-10-02 04:11:18.159789000 -0400
++++ obexd-0.46.fix/plugins/ftp.c	2013-02-02 21:50:27.017468131 -0500
+@@ -81,7 +81,7 @@
+     <sequence>								\
+       <sequence>							\
+         <uuid value=\"0x1106\"/>					\
+-        <uint16 value=\"0x0102\" name=\"version\"/>			\
++        <uint16 value=\"0x0100\" name=\"version\"/>			\
+       </sequence>							\
+     </sequence>								\
+   </attribute>								\
+@@ -89,9 +89,6 @@
+   <attribute id=\"0x0100\">						\
+     <text value=\"%s\" name=\"name\"/>					\
+   </attribute>								\
+-  <attribute id=\"0x0200\">						\
+-    <uint16 value=\"%u\" name=\"psm\"/>					\
+-  </attribute>								\
+ </record>"
+ 
+ static const uint8_t FTP_TARGET[TARGET_SIZE] = {
+@@ -520,7 +517,6 @@
+ 	.name = "File Transfer server",
+ 	.service = OBEX_FTP,
+ 	.channel = FTP_CHANNEL,
+-	.port = OBEX_PORT_RANDOM,
+ 	.secure = TRUE,
+ 	.record = FTP_RECORD,
+ 	.target = FTP_TARGET,
+diff -ur obexd-0.46.fix.orig/plugins/opp.c obexd-0.46.fix/plugins/opp.c
+--- obexd-0.46.fix.orig/plugins/opp.c	2012-10-02 04:11:18.209817000 -0400
++++ obexd-0.46.fix/plugins/opp.c	2013-02-02 21:50:40.881462428 -0500
+@@ -72,7 +72,7 @@
+     <sequence>							\
+       <sequence>						\
+         <uuid value=\"0x1105\"/>				\
+-        <uint16 value=\"0x0102\" name=\"version\"/>		\
++        <uint16 value=\"0x0100\" name=\"version\"/>		\
+       </sequence>						\
+     </sequence>							\
+   </attribute>							\
+@@ -92,9 +92,6 @@
+       <uint8 value=\"0xff\"/>					\
+     </sequence>							\
+   </attribute>							\
+-  <attribute id=\"0x0200\">					\
+-    <uint16 value=\"%u\" name=\"psm\"/>				\
+-  </attribute>							\
+ </record>"
+ 
+ static void *opp_connect(struct obex_session *os, int *err)
+@@ -220,7 +217,6 @@
+ 	.name = "Object Push server",
+ 	.service = OBEX_OPP,
+ 	.channel = OPP_CHANNEL,
+-	.port = OBEX_PORT_RANDOM,
+ 	.record = OPP_RECORD,
+ 	.connect = opp_connect,
+ 	.progress = opp_progress,
